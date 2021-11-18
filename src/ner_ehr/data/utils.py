@@ -1,7 +1,10 @@
-from ner_ehr.data.entities import AnnotationTuple, List
+from ner_ehr.data.variables import TokenTuple, AnnotationTuple
+from typing import List, Union
+import pandas as pd
 
 
-def get_sequence_split_idx(
-    text: str, sequence_end_identifiers: List[str] = ["!", ".", "?"]
+def sort_namedtuples(
+    namedtuples: Union[List[TokenTuple], List[AnnotationTuple]],
 ):
-    pass
+    df = pd.DataFrame(namedtuples).sort_values("start_idx")
+    return list(df.itertuples(name=type(namedtuples[0]).__name__, index=False))

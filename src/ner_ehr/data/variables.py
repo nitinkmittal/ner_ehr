@@ -1,10 +1,12 @@
 """Contain definitions for entities: tokens and annotations."""
 from abc import ABC
-from typing import NamedTuple
+from typing import NamedTuple, List, Union
 from collections import namedtuple
 
+import pandas as pd
 
-class Entity(ABC):
+
+class Variable(ABC):
     """Base entity."""
 
     def __init__(
@@ -28,7 +30,7 @@ class Entity(ABC):
         self.end_idx = end_idx
 
         self.__dict__.update(kwargs)
-        self.tuple = None
+        self.tuple: NamedTuple = None
 
     @property
     def start_idx(self) -> int:
@@ -55,7 +57,7 @@ class Entity(ABC):
 TokenTuple = namedtuple("Token", field_names=["token", "start_idx", "end_idx"])
 
 
-class Token(Entity):
+class Token(Variable):
     """Definition of a token."""
 
     def __init__(self, token: str, start_idx: int, end_idx: int):
@@ -63,7 +65,7 @@ class Token(Entity):
             name="Token", token=token, start_idx=start_idx, end_idx=end_idx
         )
 
-        self.tuple = TokenTuple(
+        self.tuple: TokenTuple = TokenTuple(
             token=self.token, start_idx=self.start_idx, end_idx=self.end_idx
         )
 
@@ -73,7 +75,7 @@ AnnotationTuple = namedtuple(
 )
 
 
-class Annotation(Entity):
+class Annotation(Variable):
     """Definition of an annotation."""
 
     def __init__(self, token: str, start_idx: int, end_idx: int, tag: str):
@@ -85,7 +87,7 @@ class Annotation(Entity):
             tag=tag,
         )
 
-        self.tuple = AnnotationTuple(
+        self.tuple: AnnotationTuple = AnnotationTuple(
             token=self.token,
             start_idx=self.start_idx,
             end_idx=self.end_idx,
