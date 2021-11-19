@@ -1,9 +1,7 @@
 """Contain definitions for entities: tokens and annotations."""
 from abc import ABC
-from typing import NamedTuple, List, Union
 from collections import namedtuple
-
-import pandas as pd
+from typing import NamedTuple
 
 
 class Variable(ABC):

@@ -1,6 +1,7 @@
 """Contain callable function definations."""
 from abc import ABC
 from typing import List, Union
+
 from ner_ehr.data.variables import AnnotationTuple, TokenTuple
 
 
@@ -13,7 +14,7 @@ class Parser(ABC):
     def parse(
         self, **kwargs
     ) -> Union[List[AnnotationTuple], List[TokenTuple]]:
-        pass
+        raise NotImplementedError("No parser assigned ...")
 
     def __call__(
         self, **kwargs
@@ -22,22 +23,22 @@ class Parser(ABC):
 
 
 class AnnotationParser(Parser):
-    """Base parser to generate list of AnnotationTuple."""
+    """Base parser to generate list of AnnotationTuples."""
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.annotations: List[AnnotationTuple] = []
+        self.annotations: List[AnnotationTuple] = None
 
     def parse(self, **kwargs) -> List[AnnotationTuple]:
-        pass
+        raise NotImplementedError("No parser assigned ...")
 
 
 class TokenParser(Parser):
-    """Base parser to generate list of TokenTuple."""
+    """Base parser to generate list of TokenTuples."""
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.tokens: List[TokenTuple] = []
+        self.tokens: List[TokenTuple] = None
 
     def parse(self, **kwargs) -> List[TokenTuple]:
-        pass
+        raise NotImplementedError("No parser assigned ...")

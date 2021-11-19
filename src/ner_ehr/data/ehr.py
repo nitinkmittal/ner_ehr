@@ -1,24 +1,66 @@
-from abc import ABC
-
-from typing import Union, List
-from ner_ehr.data.variables import AnnotationTuple, TokenTuple
-import pandas as pd
-from pathlib import Path
 import os
+from abc import ABC
+from pathlib import Path
+from typing import List, Union
+
+import pandas as pd
+from pandera import check_output
+
+from ner_ehr.data.utils import annotations_df_schema, tokens_df_schema
+from ner_ehr.data.variables import AnnotationTuple, TokenTuple
 
 UNTAG_ENTITY_LABEL = "O"
 
 
+def read_csv(fp: Union[Path, str], **kwargs) -> pd.core.frame.DataFrame:
+    return pd.read_csv(fp, **kwargs)
+
+
 class CoNLLDataset(ABC):
+    """Save list of annotated/unannoted tokens in CSV."""
+
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
-
         self.tokens_with_annotations: pd.core.frame.DataFrame = None
         self.tokens_without_annotations: pd.core.frame.DataFrame = None
 
-    def _to_csv(
-        self, fp: Union[str, Path], is_annotated: bool
-    ) -> Union[str, Path]:
+    def write_csv_tokens_with_annotations(self, **kwargs) -> None:
+        raise NotImplementedError
+
+    def write_csv_tokens_without_annotations(self, **kwargs) -> None:
+        raise NotImplementedError
+
+    @check_output(annotations_df_schema)
+    def read_csv_tokens_with_annotations(
+        self, **kwargs
+    ) -> pd.core.frame.DataFrame:
+        raise NotImplementedError
+
+    @check_output(tokens_df_schema)
+    def read_csv_tokens_without_annotations(
+        self, **kwargs
+    ) -> pd.core.frame.DataFrame:
+        raise NotImplementedError
+
+
+class EHR(CoNLLDataset):
+    """Save tokens and annotations for EHR into CoLNNDataset format"""
+
+    def __init__(
+        self,
+    ):
+        super().__init__()
+
+    def _write_csv(self, fp: Union[str, Path], is_annotated: bool) -> None:
+        """Write dataframe into CSV.
+
+        Args:
+            fp: filepath with file name to be used
+                while saving CSV
+
+            is_annotated: boolean flag to indicate token with
+                and without annotations.
+        """
         filename = os.path.basename(fp).split(".")[0]
         add_on = (
             "-tokens-with-annotations.csv"
@@ -32,12 +74,13 @@ class CoNLLDataset(ABC):
         else:
             self.tokens_without_annotations.to_csv(fp, index=False)
 
-    def to_csv_tokens_with_annotations(
+    def write_csv_tokens_with_annotations(
         self,
         tokens: List[TokenTuple],
         annotations: List[AnnotationTuple],
         fp: Union[str, Path],
     ) -> None:
+        """Save tokens with annotations into CSV."""
 
         self.tokens_with_annotations = pd.merge(
             pd.DataFrame(tokens),
@@ -45,24 +88,30 @@ class CoNLLDataset(ABC):
             on=tokens[0]._fields,
             how="left",
         )
-
         self.tokens_with_annotations["tag"].fillna(
             UNTAG_ENTITY_LABEL, inplace=True
         )
-        self._to_csv(fp=fp, is_annotated=True)
+        annotations_df_schema.validate(self.tokens_with_annotations)
+        self._write_csv(fp=fp, is_annotated=True)
 
-    def to_csv_tokens_without_annotations(
+    def write_csv_tokens_without_annotations(
         self,
         tokens: List[TokenTuple],
         fp: Union[str, Path],
     ) -> None:
-
+        """Save tokens without annotations into CSV."""
         self.tokens_without_annotations = pd.DataFrame(tokens)
-        self._to_csv(fp=fp, is_annotated=False)
+        tokens_df_schema.validate(self.tokens_without_annotations)
+        self._write_csv(fp=fp, is_annotated=False)
 
+    @check_output(annotations_df_schema)
+    def read_csv_tokens_with_annotations(
+        self, fp: Union[Path, str]
+    ) -> pd.core.frame.DataFrame:
+        return read_csv(fp=fp)
 
-class EHR(CoNLLDataset):
-    def __init__(
-        self,
-    ):
-        super().__init__()
+    @check_output(tokens_df_schema)
+    def read_csv_tokens_without_annotations(
+        self, fp: Union[Path, str]
+    ) -> pd.core.frame.DataFrame:
+        return read_csv(fp=fp)
