@@ -20,13 +20,13 @@ from custom_parsers import CustomAnnotationParser, CustomTokenParser
 
 AVAILABLE_TASKS: List[str] = ["TOKENIZE"]
 DEFAULT_PROCESSED_TRAIN_DATA_DIR: Union[Path, str] = os.path.join(
-    os.getcwd(), "out", "train"
+    os.getcwd(), "processed", "train"
 )
 DEFAULT_PROCESSED_VAL_DATA_DIR: Union[Path, str] = os.path.join(
-    os.getcwd(), "out", "val"
+    os.getcwd(), "processed", "val"
 )
 DEFAULT_PROCESSED_TEST_DATA_DIR: Union[Path, str] = os.path.join(
-    os.getcwd(), "out", "test"
+    os.getcwd(), "processed", "test"
 )
 
 AVAILABLE_TOKENIZERS: List[str] = ["SPLIT", "NLTK", "SCISPACY"]
@@ -59,7 +59,7 @@ def parse_arguments():
         type=float,
         help=(
             "directory to store processed training tokens, "
-            f"default: {DEFAULT_PROCESSED_TRAIN_DATA_DIR}"
+            f"default: {DEFAULT_VAL_SPLIT}"
         ),
         default=DEFAULT_VAL_SPLIT,
     )

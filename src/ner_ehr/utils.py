@@ -10,4 +10,3 @@ def copy_docstring(original: Callable) -> Callable:
         return target
 
     return wrapper
-

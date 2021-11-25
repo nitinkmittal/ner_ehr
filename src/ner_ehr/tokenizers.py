@@ -61,20 +61,24 @@ class Tokenizer(ABC):
         Returns:
             A list of string tokens
         """
-        pass
+        raise NotImplementedError("No tokenizer assigned ...")
 
     def _map_token_idxs(
         self,
-        tokens: List[str],
+        doc_id: str,
         text: str,
+        tokens: List[str],
     ) -> List[TokenTuple]:
         """Map start and end character indexes
             for each token generated from given text.
 
         Args:
-            tokens: a list of string tokens
+            doc_id: unique identifier for document/sample from which
+                variable is generated
 
             text: a string from which tokens are generated
+
+            tokens: a list of string tokens
 
         Returns:
             A list of NamedTuples, Tokens(token, start_idx, end_idx)
@@ -94,7 +98,12 @@ class Tokenizer(ABC):
             # find index of last character of token
             end_idx = start_idx + len(raw_token)
             idx_mapped_tokens.append(
-                Token(token=raw_token, start_idx=start_idx, end_idx=end_idx)()
+                Token(
+                    doc_id=doc_id,
+                    token=raw_token,
+                    start_idx=start_idx,
+                    end_idx=end_idx,
+                )()
             )
 
             start_idx += len(raw_token)  # update start_idx for next token
@@ -103,9 +112,13 @@ class Tokenizer(ABC):
             _validate_token_idxs(tokens=idx_mapped_tokens, text=text)
         return idx_mapped_tokens
 
-    def __call__(self, text: str) -> List[TokenTuple]:
-        tokens = self.tokenize(text)
-        return self._map_token_idxs(tokens=tokens, text=text)
+    def __call__(self, doc_id: str, text: str) -> List[TokenTuple]:
+        tokens = self.tokenize(text=text)
+        return self._map_token_idxs(
+            doc_id=doc_id,
+            text=text,
+            tokens=tokens,
+        )
 
 
 class SplitTokenizer(Tokenizer):
@@ -126,7 +139,7 @@ class SplitTokenizer(Tokenizer):
                 default=False
         """
 
-        def tokenizer(x):
+        def tokenizer(x: str):
             if splitlines:
                 return " ".join(x.splitlines()).split(sep)
             else:
@@ -140,7 +153,7 @@ class SplitTokenizer(Tokenizer):
 
     @copy_docstring(Tokenizer.tokenize)
     def tokenize(self, text: str) -> List[str]:
-        return self.tokenizer(text)
+        return self.tokenizer(text=text)
 
 
 class ScispacyTokenizer(Tokenizer):
@@ -163,7 +176,7 @@ class ScispacyTokenizer(Tokenizer):
 
     @copy_docstring(Tokenizer.tokenize)
     def tokenize(self, text: str) -> List[str]:
-        return self.tokenizer(text)
+        return self.tokenizer(text=text)
 
 
 class NLTKTokenizer(Tokenizer):
@@ -183,4 +196,4 @@ class NLTKTokenizer(Tokenizer):
 
     @copy_docstring(Tokenizer.tokenize)
     def tokenize(self, text: str) -> List[str]:
-        return self.tokenizer(text)
+        return self.tokenizer(text=text)

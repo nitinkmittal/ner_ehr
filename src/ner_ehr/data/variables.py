@@ -5,16 +5,25 @@ from typing import NamedTuple
 
 
 class Variable(ABC):
-    """Base entity."""
+    """Base variable."""
 
     def __init__(
-        self, name: str, token: str, start_idx: int, end_idx: int, **kwargs
+        self,
+        name: str,
+        doc_id: str,
+        token: str,
+        start_idx: int,
+        end_idx: int,
+        **kwargs
     ):
         """
         Args:
-            name: name of the entity
+            name: name of the variable
 
-            token: value of the entity
+            doc_id: unique identifier for document/sample from which
+                variable is generated
+
+            token: value of the variable
 
             start_idx: index of first character of token picked from text
 
@@ -23,6 +32,7 @@ class Variable(ABC):
             **kwargs: other keyword arguments
         """
         self.name = name
+        self.doc_id = doc_id
         self.token = token
         self.start_idx = start_idx
         self.end_idx = end_idx
@@ -52,42 +62,61 @@ class Variable(ABC):
         return self.tuple
 
 
-TokenTuple = namedtuple("Token", field_names=["token", "start_idx", "end_idx"])
+TokenTuple = namedtuple(
+    "Token", field_names=["doc_id", "token", "start_idx", "end_idx"]
+)
 
 
 class Token(Variable):
     """Definition of a token."""
 
-    def __init__(self, token: str, start_idx: int, end_idx: int):
+    def __init__(self, doc_id: str, token: str, start_idx: int, end_idx: int):
         super().__init__(
-            name="Token", token=token, start_idx=start_idx, end_idx=end_idx
+            name="Token",
+            doc_id=doc_id,
+            token=token,
+            start_idx=start_idx,
+            end_idx=end_idx,
         )
 
         self.tuple: TokenTuple = TokenTuple(
-            token=self.token, start_idx=self.start_idx, end_idx=self.end_idx
+            doc_id=self.doc_id,
+            token=self.token,
+            start_idx=self.start_idx,
+            end_idx=self.end_idx,
         )
 
 
 AnnotationTuple = namedtuple(
-    "Annotation", field_names=["token", "start_idx", "end_idx", "tag"]
+    "Annotation",
+    field_names=["doc_id", "token", "start_idx", "end_idx", "entity"],
 )
 
 
 class Annotation(Variable):
     """Definition of an annotation."""
 
-    def __init__(self, token: str, start_idx: int, end_idx: int, tag: str):
+    def __init__(
+        self,
+        doc_id: str,
+        token: str,
+        start_idx: int,
+        end_idx: int,
+        entity: str,
+    ):
         super().__init__(
             name="Annotation",
+            doc_id=doc_id,
             token=token,
             start_idx=start_idx,
             end_idx=end_idx,
-            tag=tag,
+            entity=entity,
         )
 
         self.tuple: AnnotationTuple = AnnotationTuple(
+            doc_id=doc_id,
             token=self.token,
             start_idx=self.start_idx,
             end_idx=self.end_idx,
-            tag=self.tag,
+            entity=self.entity,
         )

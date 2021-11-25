@@ -2,17 +2,20 @@ from copy import deepcopy
 from typing import Any, Callable, List, Union
 
 import pandas as pd
-import pandera as pa
-from pandera import Column, DataFrameSchema
+
 
 from ner_ehr.data.variables import AnnotationTuple, TokenTuple
 
 
 def sort_namedtuples(
-    func: Callable[[Any], Union[List[AnnotationTuple], List[TokenTuple]]]
+    func: Callable[[Any], Union[List[AnnotationTuple], List[TokenTuple]]],
+    by: Union[str, List[str]] = "start_idx",
 ):
     """Wrapper to sort list of AnnotationTuples or TokenTuples
-    by start_idx in ascending order."""
+    by start_idx in ascending order.
+
+    Note: NamedTuples are sort in ascending order by start_idx
+    """
 
     def wrapper(*args, **kwargs):
         namedtuples = func(*args, **kwargs)
@@ -21,7 +24,7 @@ def sort_namedtuples(
             raise AttributeError(
                 f"Field start_idx missing in {type(namedtuples[0]).__name__}"
             )
-        df = pd.DataFrame(namedtuples).sort_values("start_idx")
+        df = pd.DataFrame(namedtuples).sort_values(by=by)
         return list(
             df.itertuples(name=type(namedtuples[0]).__name__, index=False)
         )
@@ -29,24 +32,6 @@ def sort_namedtuples(
     return wrapper
 
 
-# schema for annotations  dataframe
-annotations_df_schema = DataFrameSchema(
-    {
-        "token": Column(pa.String, nullable=False),
-        "start_idx": Column(pa.Int, nullable=False),
-        "end_idx": Column(pa.Int, nullable=False),
-        "tag": Column(pa.String, nullable=False),
-    }
-)
-
-# schema for tokens dataframe
-tokens_df_schema = DataFrameSchema(
-    {
-        "token": Column(pa.String, nullable=False),
-        "start_idx": Column(pa.Int, nullable=False),
-        "end_idx": Column(pa.Int, nullable=False),
-    }
-)
 
 
 def df_to_namedtuples(
@@ -57,12 +42,12 @@ def df_to_namedtuples(
 
 
 def split_annotated_tokens_in_batches(
-    namedtuples: List[AnnotationTuple], seq_length: int = 256
+    annotatedtuples: List[AnnotationTuple], seq_length: int = 256
 ) -> List[List[AnnotationTuple]]:
     """Split list of AnnotatedTuples into batches of given seq_length.
 
     Args:
-        namedtuples: a list of AnnotatedTuples
+        annotatedtuples: a list of AnnotatedTuples
 
         seq_length: maximum length of sub sequences
 
@@ -71,7 +56,7 @@ def split_annotated_tokens_in_batches(
     """
 
     batches: List[List[AnnotationTuple]] = []
-    total: int = len(namedtuples)
+    total: int = len(annotatedtuples)
 
     def find_end(start: int):
         end = start + seq_length
@@ -83,8 +68,8 @@ def split_annotated_tokens_in_batches(
     end: int = find_end(start)
 
     while end > start and end <= total:
-        sub_sequences = deepcopy(namedtuples[start:end])
-        while sub_sequences[-1].tag.startswith("I-"):
+        sub_sequences = deepcopy(annotatedtuples[start:end])
+        while sub_sequences[-1].entity.startswith("I-"):
             sub_sequences.pop(-1)
             end -= 1
         if sub_sequences:

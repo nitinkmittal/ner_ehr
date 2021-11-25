@@ -1,3 +1,5 @@
+"""This module can be used to build CSVs with annotated
+    token tuples from electronic health records."""
 import os
 from abc import ABC
 from pathlib import Path
@@ -5,11 +7,34 @@ from typing import List, Union
 
 import pandas as pd
 from pandera import check_output
+import pandera as pa
+from pandera import Column, DataFrameSchema
 
-from ner_ehr.data.utils import annotations_df_schema, tokens_df_schema
 from ner_ehr.data.variables import AnnotationTuple, TokenTuple
 
-UNTAG_ENTITY_LABEL = "O"
+UNTAG_ENTITY_LABEL = "O"  # outside entity
+
+
+# schema for annotations  dataframe
+annotations_df_schema = DataFrameSchema(
+    {
+        "doc_id": Column(pa.String, nullable=False),
+        "token": Column(pa.String, nullable=False),
+        "start_idx": Column(pa.Int, nullable=False),
+        "end_idx": Column(pa.Int, nullable=False),
+        "entity": Column(pa.String, nullable=False),
+    }
+)
+
+# schema for tokens dataframe
+tokens_df_schema = DataFrameSchema(
+    {
+        "doc_id": Column(pa.String, nullable=False),
+        "token": Column(pa.String, nullable=False),
+        "start_idx": Column(pa.Int, nullable=False),
+        "end_idx": Column(pa.Int, nullable=False),
+    }
+)
 
 
 def read_csv(fp: Union[Path, str], **kwargs) -> pd.core.frame.DataFrame:
@@ -88,7 +113,7 @@ class EHR(CoNLLDataset):
             on=tokens[0]._fields,
             how="left",
         )
-        self.tokens_with_annotations["tag"].fillna(
+        self.tokens_with_annotations["entity"].fillna(
             UNTAG_ENTITY_LABEL, inplace=True
         )
         annotations_df_schema.validate(self.tokens_with_annotations)
@@ -108,10 +133,27 @@ class EHR(CoNLLDataset):
     def read_csv_tokens_with_annotations(
         self, fp: Union[Path, str]
     ) -> pd.core.frame.DataFrame:
-        return read_csv(fp=fp)
+        return read_csv(
+            fp=fp,
+            converters={
+                "doc_id": str,
+                "token": str,
+                "start_idx": int,
+                "end_idx": int,
+                "entity": str,
+            },
+        )
 
     @check_output(tokens_df_schema)
     def read_csv_tokens_without_annotations(
         self, fp: Union[Path, str]
     ) -> pd.core.frame.DataFrame:
-        return read_csv(fp=fp)
+        return read_csv(
+            fp=fp,
+            converters={
+                "doc_id": str,
+                "token": str,
+                "start_idx": int,
+                "end_idx": int,
+            },
+        )
