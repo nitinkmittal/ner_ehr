@@ -1,3 +1,5 @@
+"""This module can be used to build CSVs with annotated
+    token tuples from electronic health records."""
 import os
 from abc import ABC
 from pathlib import Path
@@ -9,7 +11,7 @@ from pandera import check_output
 from ner_ehr.data.utils import annotations_df_schema, tokens_df_schema
 from ner_ehr.data.variables import AnnotationTuple, TokenTuple
 
-UNTAG_ENTITY_LABEL = "O"
+UNTAG_ENTITY_LABEL = "O"  # outside entity
 
 
 def read_csv(fp: Union[Path, str], **kwargs) -> pd.core.frame.DataFrame:
@@ -88,7 +90,7 @@ class EHR(CoNLLDataset):
             on=tokens[0]._fields,
             how="left",
         )
-        self.tokens_with_annotations["tag"].fillna(
+        self.tokens_with_annotations["entity"].fillna(
             UNTAG_ENTITY_LABEL, inplace=True
         )
         annotations_df_schema.validate(self.tokens_with_annotations)
