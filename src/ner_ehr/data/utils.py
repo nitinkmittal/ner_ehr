@@ -2,8 +2,7 @@ from copy import deepcopy
 from typing import Any, Callable, List, Union
 
 import pandas as pd
-import pandera as pa
-from pandera import Column, DataFrameSchema
+
 
 from ner_ehr.data.variables import AnnotationTuple, TokenTuple
 
@@ -33,26 +32,6 @@ def sort_namedtuples(
     return wrapper
 
 
-# schema for annotations  dataframe
-annotations_df_schema = DataFrameSchema(
-    {
-        "doc_id": Column(pa.String, nullable=False),
-        "token": Column(pa.String, nullable=False),
-        "start_idx": Column(pa.Int, nullable=False),
-        "end_idx": Column(pa.Int, nullable=False),
-        "entity": Column(pa.String, nullable=False),
-    }
-)
-
-# schema for tokens dataframe
-tokens_df_schema = DataFrameSchema(
-    {
-        "doc_id": Column(pa.String, nullable=False),
-        "token": Column(pa.String, nullable=False),
-        "start_idx": Column(pa.Int, nullable=False),
-        "end_idx": Column(pa.Int, nullable=False),
-    }
-)
 
 
 def df_to_namedtuples(
