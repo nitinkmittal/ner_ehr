@@ -105,7 +105,7 @@ if __name__ == "__main__":
 
     test_gold, test_pred = baseline_model.fit(test_ds, train_vocab)
     score_test = baseline_model.evaluate(test_gold, test_pred)
-    print(f"Test metrics: {score_valid}")
+    print(f"Test metrics: {score_test}")
 
     
     
