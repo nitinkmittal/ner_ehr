@@ -6,6 +6,38 @@ import pandas as pd
 
 from ner_ehr.data.variables import AnnotationTuple, TokenTuple
 
+from collections import Counter, defaultdict
+
+from abc import ABC
+
+
+class Vocab(ABC):
+    """Creates a vocabulary for dataset"""
+
+    def __init__(self):
+        self.vocab = set()
+        self.token_to_entity = defaultdict(Counter)
+        self.token_doc_freq = defaultdict(set)
+
+    def fit(self, annotated_tokens: List[AnnotationTuple]) -> None:
+        """
+        Adds the token and it's corresponding tags and counts in a dictionary of dictionary
+            stats = {
+                'token1': {'tag1': count, 'tag2': count},
+                'token2': {'tag1': count}, ...}
+
+        Args:
+            token: string
+            tag: string containing entity class of the token
+
+        Returns:
+            None
+        """
+        for token in annotated_tokens:
+            self.vocab.add(token.token)
+            self.token_to_entity[token.token].update({token.entity: 1})
+            self.token_doc_freq[token.token].add(token.doc_id)
+
 
 def sort_namedtuples(
     func: Callable[[Any], Union[List[AnnotationTuple], List[TokenTuple]]],
@@ -32,8 +64,6 @@ def sort_namedtuples(
     return wrapper
 
 
-
-
 def df_to_namedtuples(
     name: str, df: pd.core.frame.DataFrame
 ) -> Union[List[AnnotationTuple], List[TokenTuple]]:
@@ -41,15 +71,18 @@ def df_to_namedtuples(
     return list(df.itertuples(name=name, index=False))
 
 
-def split_annotated_tokens_in_batches(
+def generate_annotated_token_seqs(
     annotatedtuples: List[AnnotationTuple], seq_length: int = 256
 ) -> List[List[AnnotationTuple]]:
-    """Split list of AnnotatedTuples into batches of given seq_length.
+    """Generate sequences of AnnotatedTuples of given seq_length.
+
+        Note: Ensure that no sub-sequence can end with `I`-entity tag.
+            Doing so a sub-sequence can be shorter than given length.
 
     Args:
         annotatedtuples: a list of AnnotatedTuples
 
-        seq_length: maximum length of sub sequences
+        seq_length: maximum length of sub-sequences
 
     Returns:
         A list of list of AnnotatedTuples
