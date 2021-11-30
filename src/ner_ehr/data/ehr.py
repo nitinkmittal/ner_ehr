@@ -12,7 +12,7 @@ from pandera import Column, DataFrameSchema
 
 from ner_ehr.data.variables import AnnotationTuple, TokenTuple
 
-UNTAG_ENTITY_LABEL = "O"  # outside entity
+from ner_ehr.data import Constants
 
 
 # schema for annotations  dataframe
@@ -84,7 +84,7 @@ class EHR(CoNLLDataset):
                 while saving CSV
 
             is_annotated: boolean flag to indicate token with
-                and without annotations.
+                or without annotations.
         """
         filename = os.path.basename(fp).split(".")[0]
         add_on = (
@@ -114,7 +114,7 @@ class EHR(CoNLLDataset):
             how="left",
         )
         self.tokens_with_annotations["entity"].fillna(
-            UNTAG_ENTITY_LABEL, inplace=True
+            Constants.UNTAG_ENTITY_LABEL, inplace=True
         )
         annotations_df_schema.validate(self.tokens_with_annotations)
         self._write_csv(fp=fp, is_annotated=True)
