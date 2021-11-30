@@ -78,6 +78,7 @@ def generate_annotated_token_seqs(
 
         Note: Ensure that no sub-sequence can end with `I`-entity tag.
             Doing so a sub-sequence can be shorter than given length.
+            Not all sequences are of given seq_length.
 
     Args:
         annotatedtuples: a list of AnnotatedTuples
@@ -88,7 +89,7 @@ def generate_annotated_token_seqs(
         A list of list of AnnotatedTuples
     """
 
-    batches: List[List[AnnotationTuple]] = []
+    seqs: List[List[AnnotationTuple]] = []
     total: int = len(annotatedtuples)
 
     def find_end(start: int):
@@ -102,12 +103,19 @@ def generate_annotated_token_seqs(
 
     while end > start and end <= total:
         sub_sequences = deepcopy(annotatedtuples[start:end])
+        is_I_found: bool = False
         while sub_sequences[-1].entity.startswith("I-"):
             sub_sequences.pop(-1)
             end -= 1
+            is_I_found = True
+
+        if is_I_found and sub_sequences:
+            sub_sequences.pop(-1)  # removing `B-` entity
+            end -= 1
+
         if sub_sequences:
-            batches.append(sub_sequences)
+            seqs.append(sub_sequences)
         start = end
         end = find_end(start)
 
-    return batches
+    return seqs
