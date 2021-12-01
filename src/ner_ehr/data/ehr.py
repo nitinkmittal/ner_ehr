@@ -14,67 +14,57 @@ from ner_ehr.data.variables import AnnotationTuple, TokenTuple
 
 from ner_ehr.data import Constants
 
+df_schema = {
+    "doc_id": Column(pa.String, nullable=False),
+    "token": Column(pa.String, nullable=False),
+    "start_idx": Column(pa.Int, nullable=False),
+    "end_idx": Column(pa.Int, nullable=False),
+    "entity": Column(pa.String, nullable=False),
+}
+
 
 # schema for annotations  dataframe
 annotations_df_schema = DataFrameSchema(
-    {
-        "doc_id": Column(pa.String, nullable=False),
-        "token": Column(pa.String, nullable=False),
-        "start_idx": Column(pa.Int, nullable=False),
-        "end_idx": Column(pa.Int, nullable=False),
-        "entity": Column(pa.String, nullable=False),
-    }
+    {field: df_schema[field] for field in AnnotationTuple._fields}
 )
 
 # schema for tokens dataframe
 tokens_df_schema = DataFrameSchema(
-    {
-        "doc_id": Column(pa.String, nullable=False),
-        "token": Column(pa.String, nullable=False),
-        "start_idx": Column(pa.Int, nullable=False),
-        "end_idx": Column(pa.Int, nullable=False),
-    }
+    {field: df_schema[field] for field in TokenTuple._fields}
 )
+
+col_converters = {
+    "doc_id": str,
+    "token": str,
+    "start_idx": int,
+    "end_idx": int,
+    "entity": str,
+}
+
+# column dtype converters for annotations  dataframe
+annotations_col_converters = {
+    field: col_converters[field] for field in AnnotationTuple._fields
+}
+
+
+# column dtype converters for tokens dataframe
+tokens_col_converters = {
+    field: col_converters[field] for field in TokenTuple._fields
+}
 
 
 def read_csv(fp: Union[Path, str], **kwargs) -> pd.core.frame.DataFrame:
     return pd.read_csv(fp, **kwargs)
 
 
-class CoNLLDataset(ABC):
-    """Save list of annotated/unannoted tokens in CSV."""
-
-    def __init__(self, **kwargs):
-        self.__dict__.update(kwargs)
-        self.tokens_with_annotations: pd.core.frame.DataFrame = None
-        self.tokens_without_annotations: pd.core.frame.DataFrame = None
-
-    def write_csv_tokens_with_annotations(self, **kwargs) -> None:
-        raise NotImplementedError
-
-    def write_csv_tokens_without_annotations(self, **kwargs) -> None:
-        raise NotImplementedError
-
-    @check_output(annotations_df_schema)
-    def read_csv_tokens_with_annotations(
-        self, **kwargs
-    ) -> pd.core.frame.DataFrame:
-        raise NotImplementedError
-
-    @check_output(tokens_df_schema)
-    def read_csv_tokens_without_annotations(
-        self, **kwargs
-    ) -> pd.core.frame.DataFrame:
-        raise NotImplementedError
-
-
-class EHR(CoNLLDataset):
+class EHR(ABC):
     """Save tokens and annotations for EHR into CoLNNDataset format"""
 
     def __init__(
         self,
     ):
-        super().__init__()
+        self.tokens_with_annotations: pd.core.frame.DataFrame = None
+        self.tokens_without_annotations: pd.core.frame.DataFrame = None
 
     def _write_csv(self, fp: Union[str, Path], is_annotated: bool) -> None:
         """Write dataframe into CSV.
@@ -129,31 +119,16 @@ class EHR(CoNLLDataset):
         tokens_df_schema.validate(self.tokens_without_annotations)
         self._write_csv(fp=fp, is_annotated=False)
 
+    @staticmethod
     @check_output(annotations_df_schema)
     def read_csv_tokens_with_annotations(
-        self, fp: Union[Path, str]
+        fp: Union[Path, str]
     ) -> pd.core.frame.DataFrame:
-        return read_csv(
-            fp=fp,
-            converters={
-                "doc_id": str,
-                "token": str,
-                "start_idx": int,
-                "end_idx": int,
-                "entity": str,
-            },
-        )
+        return read_csv(fp=fp, converters=annotations_col_converters)
 
+    @staticmethod
     @check_output(tokens_df_schema)
     def read_csv_tokens_without_annotations(
-        self, fp: Union[Path, str]
+        fp: Union[Path, str]
     ) -> pd.core.frame.DataFrame:
-        return read_csv(
-            fp=fp,
-            converters={
-                "doc_id": str,
-                "token": str,
-                "start_idx": int,
-                "end_idx": int,
-            },
-        )
+        return read_csv(fp=fp, converters=tokens_col_converters)
