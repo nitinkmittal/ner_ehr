@@ -8,18 +8,10 @@ class Variable(ABC):
     """Base variable."""
 
     def __init__(
-        self,
-        name: str,
-        doc_id: str,
-        token: str,
-        start_idx: int,
-        end_idx: int,
-        **kwargs
+        self, doc_id: str, token: str, start_idx: int, end_idx: int, **kwargs
     ):
         """
         Args:
-            name: name of the variable
-
             doc_id: unique identifier for document/sample from which
                 variable is generated
 
@@ -31,7 +23,7 @@ class Variable(ABC):
 
             **kwargs: other keyword arguments
         """
-        self.name = name
+
         self.doc_id = doc_id
         self.token = token
         self.start_idx = start_idx
@@ -39,6 +31,22 @@ class Variable(ABC):
 
         self.__dict__.update(kwargs)
         self.tuple: NamedTuple = None
+
+    @property
+    def doc_id(self) -> str:
+        return self._doc_id
+
+    @doc_id.setter
+    def doc_id(self, idx):
+        self._doc_id = str(idx)
+
+    @property
+    def token(self) -> str:
+        return self._token
+
+    @token.setter
+    def token(self, idx):
+        self._token = str(idx)
 
     @property
     def start_idx(self) -> int:
@@ -72,7 +80,6 @@ class Token(Variable):
 
     def __init__(self, doc_id: str, token: str, start_idx: int, end_idx: int):
         super().__init__(
-            name="Token",
             doc_id=doc_id,
             token=token,
             start_idx=start_idx,
@@ -105,7 +112,56 @@ class Annotation(Variable):
         entity: str,
     ):
         super().__init__(
-            name="Annotation",
+            doc_id=doc_id,
+            token=token,
+            start_idx=start_idx,
+            end_idx=end_idx,
+        )
+        self.entity = entity
+
+        self.tuple: AnnotationTuple = AnnotationTuple(
+            doc_id=self.doc_id,
+            token=self.token,
+            start_idx=self.start_idx,
+            end_idx=self.end_idx,
+            entity=self.entity,
+        )
+
+    @property
+    def entity(self) -> str:
+        return self._entity
+
+    @entity.setter
+    def entity(self, entity):
+        self._entity = str(entity)
+
+
+LongAnnotationTuple = namedtuple(
+    "LongAnnotation",
+    field_names=[
+        "doc_id",
+        "token",
+        "start_idx",
+        "end_idx",
+        "entity",
+        "token_idx",
+    ],
+)
+
+
+class LongAnnotation(Annotation):
+    """Definition of an annotation."""
+
+    def __init__(
+        self,
+        doc_id: str,
+        token: str,
+        start_idx: int,
+        end_idx: int,
+        entity: str,
+        token_idx: int,
+    ):
+        super().__init__(
             doc_id=doc_id,
             token=token,
             start_idx=start_idx,
@@ -113,10 +169,21 @@ class Annotation(Variable):
             entity=entity,
         )
 
-        self.tuple: AnnotationTuple = AnnotationTuple(
-            doc_id=doc_id,
+        self.token_idx = token_idx
+
+        self.tuple: LongAnnotationTuple = LongAnnotationTuple(
+            doc_id=self.doc_id,
             token=self.token,
             start_idx=self.start_idx,
             end_idx=self.end_idx,
             entity=self.entity,
+            token_idx=self.token_idx,
         )
+
+    @property
+    def token_idx(self) -> int:
+        return self._token_idx
+
+    @token_idx.setter
+    def token_idx(self, idx: int):
+        self._token_idx = int(idx)
