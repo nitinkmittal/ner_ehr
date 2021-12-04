@@ -1,42 +1,10 @@
-from copy import deepcopy
+"""This module contain helper utilities to prepare data for NER."""
+from pathlib import Path
 from typing import Any, Callable, List, Union
 
 import pandas as pd
 
-
 from ner_ehr.data.variables import AnnotationTuple, TokenTuple
-
-from collections import Counter, defaultdict
-
-from abc import ABC
-
-
-class Vocab(ABC):
-    """Creates a vocabulary for dataset"""
-
-    def __init__(self):
-        self.vocab = set()
-        self.token_to_entity = defaultdict(Counter)
-        self.token_doc_freq = defaultdict(set)
-
-    def fit(self, annotated_tokens: List[AnnotationTuple]) -> None:
-        """
-        Adds the token and it's corresponding tags and counts in a dictionary of dictionary
-            stats = {
-                'token1': {'tag1': count, 'tag2': count},
-                'token2': {'tag1': count}, ...}
-
-        Args:
-            token: string
-            tag: string containing entity class of the token
-
-        Returns:
-            None
-        """
-        for token in annotated_tokens:
-            self.vocab.add(token.token)
-            self.token_to_entity[token.token].update({token.entity: 1})
-            self.token_doc_freq[token.token].add(token.doc_id)
 
 
 def sort_namedtuples(
@@ -44,7 +12,7 @@ def sort_namedtuples(
     by: Union[str, List[str]] = "start_idx",
 ):
     """Wrapper to sort list of AnnotationTuples or TokenTuples
-    by start_idx in ascending order.
+    by `start_idx` in ascending order.
 
     Note: NamedTuples are sort in ascending order by start_idx
     """
@@ -71,17 +39,34 @@ def df_to_namedtuples(
     return list(df.itertuples(name=name, index=False))
 
 
-def generate_annotated_token_seqs(
+def generate_token_seqs(
     annotatedtuples: List[AnnotationTuple], seq_length: int = 256
 ) -> List[List[AnnotationTuple]]:
     """Generate sequences of AnnotatedTuples of given seq_length.
 
-        Note: Ensure that no sub-sequence can end with `I`-entity tag.
-            Doing so a sub-sequence can be shorter than given length.
-            Not all sequences are of given seq_length.
+        Note: Ensure that sequence of tokens generated preserve
+            continuation of `IOB` tagging within every sequence,
+            i.e. `B-` and `I-` entity tags in continuation
+                are kept in same sequence.
+            Doing so, a sequence can be shorter than given length,
+            i.e. not all sequences are of given `seq_length`.
 
     Args:
-        annotatedtuples: a list of AnnotatedTuples
+        annotatedtuples: list of AnnotatedToken tuples
+                [
+                    Annotation(
+                        doc_id='100035',
+                        token='Admission',
+                        start_idx=0,
+                        end_idx=9,
+                        entity='O'),
+                    Annotation(
+                        doc_id='100035',
+                        token='Date',
+                        start_idx=10,
+                        end_idx=14,
+                        entity='O'),
+                ]
 
         seq_length: maximum length of sub-sequences
 
@@ -89,33 +74,62 @@ def generate_annotated_token_seqs(
         A list of list of AnnotatedTuples
     """
 
+    if seq_length == 1:
+        raise ValueError(
+            "Sequence generation not implemented for seq_length = 1"
+        )
+
     seqs: List[List[AnnotationTuple]] = []
-    total: int = len(annotatedtuples)
+    total_tokens: int = len(annotatedtuples)
 
     def find_end(start: int):
+        """Find end index for a sequence  with respect to start idx."""
         end = start + seq_length
-        if end > total:
-            end = total
+        if end > total_tokens:
+            end = total_tokens
         return end
 
     start: int = 0
     end: int = find_end(start)
 
-    while end > start and end <= total:
-        sub_sequences = deepcopy(annotatedtuples[start:end])
-        is_I_found: bool = False
-        while sub_sequences[-1].entity.startswith("I-"):
-            sub_sequences.pop(-1)
-            end -= 1
-            is_I_found = True
+    while end > start and end <= total_tokens:
+        if (
+            not annotatedtuples[start].entity.startswith("I-")
+            and annotatedtuples[end - 1].entity.startswith("I-")
+            and (
+                end == total_tokens
+                or not annotatedtuples[end].entity.startswith("I-")
+            )
+        ):
+            # perfect sequence found
+            # TODO: Add examples of perfect sequences
+            pass
+        else:
+            # finding best possible sequence
+            is_inside_tag_found: bool = False
+            # check if inside tag and not retracking to previous sub-seqs
+            while end > start and annotatedtuples[end - 1].entity.startswith(
+                "I-"
+            ):
+                end -= 1
+                is_inside_tag_found = True
 
-        if is_I_found and sub_sequences:
-            sub_sequences.pop(-1)  # removing `B-` entity
-            end -= 1
+            if is_inside_tag_found:
+                end -= 1
 
-        if sub_sequences:
-            seqs.append(sub_sequences)
+        if end <= start:
+            # skipping current sequence
+            #   try from next start idx
+            start += 1
+            end = find_end(start)
+            continue
+
+        seqs.append(annotatedtuples[start:end])
         start = end
         end = find_end(start)
-
     return seqs
+
+
+def read_csv(fp: Union[Path, str], **kwargs) -> pd.core.frame.DataFrame:
+    """Helper function to read a CSV."""
+    return pd.read_csv(fp, **kwargs)
