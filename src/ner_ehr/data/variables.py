@@ -145,12 +145,13 @@ LongAnnotationTuple = namedtuple(
         "end_idx",
         "entity",
         "token_idx",
+        "entity_label",
     ],
 )
 
 
 class LongAnnotation(Annotation):
-    """Definition of an annotation."""
+    """Definition of an long annotation."""
 
     def __init__(
         self,
@@ -160,6 +161,7 @@ class LongAnnotation(Annotation):
         end_idx: int,
         entity: str,
         token_idx: int,
+        entity_label: int,
     ):
         super().__init__(
             doc_id=doc_id,
@@ -170,7 +172,7 @@ class LongAnnotation(Annotation):
         )
 
         self.token_idx = token_idx
-
+        self.entity_label = entity_label
         self.tuple: LongAnnotationTuple = LongAnnotationTuple(
             doc_id=self.doc_id,
             token=self.token,
@@ -178,6 +180,7 @@ class LongAnnotation(Annotation):
             end_idx=self.end_idx,
             entity=self.entity,
             token_idx=self.token_idx,
+            entity_label=self.entity_label,
         )
 
     @property
@@ -187,3 +190,11 @@ class LongAnnotation(Annotation):
     @token_idx.setter
     def token_idx(self, idx: int):
         self._token_idx = int(idx)
+
+    @property
+    def entity_label(self) -> int:
+        return self._entity_label
+
+    @entity_label.setter
+    def entity_label(self, label: int):
+        self._entity_label = int(label)
