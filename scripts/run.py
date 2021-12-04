@@ -240,6 +240,7 @@ def build_processed_data(
             record_fp=record_fp, annotations=annotations
         )
 
+        # saving as CSVs
         ehr.write_csv_tokens_with_annotations(
             tokens=tokens, annotations=annotations, fp=processed_record_fp
         )
