@@ -1,314 +1,278 @@
-# import os
-# from torch.utils.data import Dataset, DataLoader
-# import torch
-# from torch import Tensor
-# from pathlib import Path
-# from typing import Union, Tuple, Optional
-# from PIL import Image
-# import numpy as np
-# from tqdm import tqdm
-# import pytorch_lightning as pl
-
-# from shutil import copyfile
-
-# from .transforms import OneHotMask
-
-
-# def train_val_test_split(
-#     img_dir: Union[Path, str],
-#     mask_dir: Union[Path, str],
-#     split_ratio: Tuple[float, float],
-#     seed: int = None,
-# ):
-#     """Create train, validation and test subsets.
-#     Args:
-#         img_dir: directory with images
-#         mask_dir: directory with masks
-#         split_ratio: train and validation split ratio
-#         seed: seed for random number generator
-#     """
-
-#     assert np.sum(split_ratio) <= 1.0
-#     rng = np.random.default_rng(seed)
-
-#     fps = os.listdir(img_dir)
-#     total = len(fps)
-#     rng.shuffle(fps)
-
-#     base_dir = os.path.dirname(img_dir)
-
-#     def subset(fps: Union[Path, str], mode: str):
-#         """Create subset."""
-#         mode_dir = os.path.join(base_dir, mode)
-#         os.makedirs(mode_dir, exist_ok=True)
-#         mode_img_dir = os.path.join(mode_dir, "images")
-#         os.makedirs(mode_img_dir, exist_ok=True)
-#         mode_mask_dir = os.path.join(mode_dir, "masks")
-#         os.makedirs(mode_mask_dir, exist_ok=True)
-#         t = tqdm(enumerate(fps), position=0, leave=False)
-#         for i, fp in t:
-#             copyfile(os.path.join(img_dir, fp), os.path.join(mode_img_dir, fp))
-#             copyfile(
-#                 os.path.join(mask_dir, fp), os.path.join(mode_mask_dir, fp)
-#             )
-#             t.set_description(
-#                 f"Creating {mode} subset, copied {i+1}/{len(fps)} files"
-#             )
-
-#     # train
-#     train_fps = fps[: int(total * split_ratio[0])]
-#     subset(train_fps, mode="train")
-
-#     # val
-#     train_fps = fps[
-#         int(total * split_ratio[0]) : int(total * np.sum(split_ratio))
-#     ]
-#     subset(train_fps, mode="val")
-
-#     # test
-#     train_fps = fps[int(total * np.sum(split_ratio)) :]
-#     subset(train_fps, mode="test")
-
-
-# class NERDataset(Dataset):
-#     """Synthetic aperture radar (SAR) images and masks dataset reader."""
-
-#     def __init__(
-#         self,
-#         img_dir: Union[Path, str],
-#         mask_dir: Union[Path, str],
-#         num_classes: int,
-#     ):
-#         """
-#         Initialize SAR dataset.
-#         Args:
-#             img_dir: directory with images
-#             mask_dir: directory with masks
-#             num_classes: number of distinct classes to classify
-#         Returns:
-#             None
-#         """
-#         self.img_dir = img_dir
-#         self.mask_dir = mask_dir
-#         self.num_classes = num_classes
-
-#         self.img_fps = os.listdir(self.img_dir)
-#         self.mask_fps = os.listdir(self.mask_dir)
-
-#         if len(self.img_fps) != len(self.mask_fps):
-#             raise ValueError(
-#                 f"Number of files in {img_dir} and {mask_dir} are not equal"
-#             )
-
-#     def __len__(self) -> int:
-#         return len(self.img_fps)
-
-#     def __getitem__(self, idx: int) -> Tuple[str, Tensor, Tensor]:
-#         """
-#         Return data for given idx.
-#         Args:
-#             idx: file index.
-#         Returns:
-#             fp: file pointer
-#             img: A tensor of shape (1, H, W)
-#             mask: A tensor of shape (num_classes, H, W)
-#         """
-#         fp = self.img_fps[idx]
-#         img = Image.open(os.path.join(self.img_dir, fp))
-#         mask = Image.open(os.path.join(self.mask_dir, fp))
-
-#         # normalizing 16 bit image
-#         img = np.array(img) / 2 ** 16
-
-#         mask = torch.unsqueeze(
-#             torch.tensor(np.array(mask), dtype=torch.uint8), dim=0
-#         )
-#         mask = OneHotMask(num_classes=self.num_classes)(mask)
-#         img = ToTensor()(img)
-
-#         return fp, img, mask.type(torch.get_default_dtype())
-
-
-# class SARDataModule(pl.LightningDataModule):
-#     def __init__(
-#         self,
-#         train_dirs: Tuple[Union[Path, str], Union[Path, str]],
-#         val_dirs: Tuple[Union[Path, str], Union[Path, str]],
-#         num_classes: int,
-#         batch_sizes: Union[int, Tuple[int, int]],
-#         num_workers: Union[int, Tuple[int, int, int]],
-#     ):
-#         super().__init__()
-
-#         self.train_ds = SARDataset(
-#             img_dir=train_dirs[0],
-#             mask_dir=train_dirs[1],
-#             num_classes=num_classes,
-#         )
-#         self.val_ds = SARDataset(
-#             img_dir=val_dirs[0], mask_dir=val_dirs[1], num_classes=num_classes
-#         )
-
-#         if isinstance(num_workers, int):
-#             self.train_workers = self.val_workers = num_workers
-
-#         else:
-#             (
-#                 self.train_workers,
-#                 self.val_workers,
-#             ) = num_workers
-
-#         if isinstance(batch_sizes, int):
-#             self.train_batch_size = self.val_batch_size = batch_sizes
-
-#         else:
-#             (
-#                 self.train_batch_size,
-#                 self.val_batch_size,
-#             ) = batch_sizes
-
-#     def setup(self, stage: Optional[str] = None):
-#         pass
-
-#     def train_dataloader(self):
-#         return DataLoader(
-#             self.train_ds,
-#             batch_size=self.train_batch_size,
-#             shuffle=True,
-#             num_workers=self.train_workers,
-#         )
-
-#     def val_dataloader(self):
-#         return DataLoader(
-#             self.val_ds,
-#             batch_size=self.val_batch_size,
-#             shuffle=False,
-#             num_workers=self.val_workers,
-#         )
-
-#     def test_dataloader(self):
-#         pass
-
-from torch.utils.data import Dataset, DataLoader
-from pathlib import Path
-from typing import List, Union, Optional, Tuple
+"""This module contain PyTorch Dataset and DataLoader,
+    Pytorch Lightning DataModules."""
 import os
-from ner_ehr.data.variables import AnnotationTuple, TokenTuple
-from ner_ehr.data.ehr import EHR
-from ner_ehr.data.utils import df_to_namedtuples
+from abc import ABC
 from glob import glob
+from pathlib import Path
+from typing import Callable, List, Optional, Tuple, Union
+
+import torch
 from pytorch_lightning import LightningDataModule
+from torch.nn.utils.rnn import pad_sequence
+from torch.utils.data import DataLoader, Dataset
+
+from ner_ehr.data import Constants
+from ner_ehr.data.ehr import EHR
+from ner_ehr.data.utils import (TokenEntityVocab, df_to_namedtuples,
+                                generate_token_seqs)
+from ner_ehr.data.variables import (AnnotationTuple, LongAnnotationTuple,
+                                    TokenTuple)
+
+DEFAULT_ANNOTATED: bool = False
+DEFAULT_SEQ_LENGTH: int = 256
+DEFAULT_BATCH_SIZE: int = 1
+DEFAULT_SHUFFLE_TRAIN: bool = True
+DEFAULT_SHUFFLE_VAL: bool = True
+DEFAULT_SHUFFLE_TEST: bool = False
+DEFAULT_NUM_WORKERS: int = 1
 
 
 class EHRDataset(Dataset):
-    def __init__(self, dir: Union[Path, str], annotated: bool = False):
+    def __init__(
+        self,
+        dir: Union[Path, str],
+        vocab: TokenEntityVocab,
+        annotated: bool = DEFAULT_ANNOTATED,
+        seq_length: int = DEFAULT_SEQ_LENGTH,
+    ):
+        """
+        Args:
+            dir: directory containing CSVs with annotated tokens
+
+            vocab: ner_data.utils.TokenEntityVocab object trained on annotationtuples
+
+            annotated: boolean flag
+                if True, tokens with annotations are read,
+                otherwise without annotations are read
+
+            seq_length: maximum number of tokens in a sequence
+                default: 256
+        """
         self.dir = dir
+        self.vocab = vocab
         self.annotated = annotated
-        self.tokens: Union[List[TokenTuple], List[AnnotationTuple]] = []
+        self.seq_length = seq_length
+        self.seqs: List[List[AnnotationTuple]] = []
         self._setup()
 
     def _setup(
         self,
     ) -> Union[List[TokenTuple], List[AnnotationTuple]]:
+        """Helper function to read and generate sequences of annotated tokens.
 
+        Note: if `annotated` flag is False, then outside entity label is
+            added to all tokens
+        """
+        # reading CSVs one-by-one and generate sequences of tokens
         for fp in glob(os.path.join(self.dir, r"*.csv")):
-
             if self.annotated:
-                self.tokens += df_to_namedtuples(
+                annotatedtuples = df_to_namedtuples(
                     name=AnnotationTuple.__name__,
                     df=EHR.read_csv_tokens_with_annotations(fp=fp),
                 )
-
             else:
-                self.tokens += df_to_namedtuples(
-                    name=TokenTuple.__name__,
-                    df=EHR.read_csv_tokens_without_annotations(fp=fp),
+                annotatedtuples = EHR.read_csv_tokens_without_annotations(
+                    fp=fp
                 )
+                # adding `OUTSIDE`/`UNTAG` entity label by default
+                annotatedtuples["entity"] = Constants.UNTAG_ENTITY_LABEL.value
+                annotatedtuples = df_to_namedtuples(
+                    name=AnnotationTuple.__name__,
+                    df=annotatedtuples,
+                )
+
+            # converting annotatedtuples to long_annotatedtuples
+            #   i.e adding token indexes and entity labels from pre-trained vocab
+            annotatedtuples = [
+                self.vocab.annotation_to_longannotation(
+                    annotatedtuple=annotatedtuple
+                )
+                for annotatedtuple in annotatedtuples
+            ]
+            self.seqs += generate_token_seqs(
+                annotatedtuples=annotatedtuples, seq_length=self.seq_length
+            )
 
     def __getitem__(
         self, i: int
     ) -> Union[List[TokenTuple], List[AnnotationTuple]]:
-        return self.tokens[i]
+        return self.seqs[i]
 
     def __len__(
         self,
     ) -> int:
-        return len(self.tokens)
+        return len(self.seqs)
+
+
+class EHRBatchCollator(ABC):
+    """Helper function to prepare batch for RNNs"""
+
+    def __init__(self, return_meta: bool = False):
+        """
+        Args:
+            return_meta: a boolean flag
+                if True, metadata about current batch is also returned
+                Note: metadata is return in form of list of tuples,
+                    because of PyTorch collate_fn requirement
+        """
+        self.return_meta = return_meta
+
+    def __call__(
+        self, batch: List[LongAnnotationTuple]
+    ) -> Tuple[
+        Tuple[torch.Tensor, torch.Tensor],
+        Optional[List[Tuple[str, str, int, int, str]]],
+    ]:
+        # Note: pad_sequences require tuple/list of tensors here
+        #   with batch_first=True
+        X = pad_sequence(
+            [
+                torch.tensor(
+                    [
+                        long_annotatedtuple.token_idx
+                        for long_annotatedtuple in long_annotatedtuples
+                    ],
+                    dtype=torch.long,
+                )
+                for long_annotatedtuples in batch
+            ],
+            batch_first=True,
+            padding_value=Constants.PAD_TOKEN_IDX.value,
+        )
+        Y = pad_sequence(
+            [
+                torch.tensor(
+                    [
+                        long_annotatedtuple.entity_label
+                        for long_annotatedtuple in long_annotatedtuples
+                    ],
+                    dtype=torch.long,
+                )
+                for long_annotatedtuples in batch
+            ],
+            batch_first=True,
+            padding_value=Constants.UNTAG_ENTITY_INT_LABEL.value,
+        )
+
+        meta = [
+            (
+                long_annotatedtuple.doc_id,
+                long_annotatedtuple.token,
+                long_annotatedtuple.start_idx,
+                long_annotatedtuple.end_idx,
+                long_annotatedtuple.entity,
+            )
+            for long_annotatedtuples in batch
+            for long_annotatedtuple in long_annotatedtuples
+        ]
+
+        if self.return_meta:
+            return X, Y, meta
+
+        return X, Y, None
 
 
 class EHRDataModule(LightningDataModule):
+    """PyTorch Lightning module for EHRDataset."""
+
     def __init__(
         self,
-        train_dir: Optional[Union[Path, str]] = None,
-        val_dir: Optional[Union[Path, str]] = None,
-        test_dir: Optional[Union[Path, str]] = None,
-        annotated: bool = False,
-        batch_sizes: Union[int, Tuple[int, int], Tuple[int, int, int]] = 1,
-        num_workers: Union[int, Tuple[int, int], Tuple[int, int, int]] = 1,
-        shuffle: bool = False,
+        vocab: TokenEntityVocab,
+        collate_fn: Callable[
+            [List[LongAnnotationTuple]],
+            Tuple[
+                Tuple[torch.Tensor, torch.Tensor],
+                Optional[List[Tuple[str, str, int, int, str]]],
+            ],
+        ],
+        dir_train: Optional[Union[Path, str]] = None,
+        dir_val: Optional[Union[Path, str]] = None,
+        dir_test: Optional[Union[Path, str]] = None,
+        seq_length: int = DEFAULT_SEQ_LENGTH,
+        annotated: bool = DEFAULT_ANNOTATED,
+        batch_size_train: int = DEFAULT_BATCH_SIZE,
+        batch_size_val: int = DEFAULT_BATCH_SIZE,
+        batch_size_test: int = DEFAULT_BATCH_SIZE,
+        num_workers_train: int = DEFAULT_NUM_WORKERS,
+        num_workers_val: int = DEFAULT_NUM_WORKERS,
+        num_workers_test: int = DEFAULT_NUM_WORKERS,
+        shuffle_train: bool = DEFAULT_SHUFFLE_TRAIN,
+        shuffle_val: bool = DEFAULT_SHUFFLE_VAL,
+        shuffle_test: bool = DEFAULT_SHUFFLE_TEST,
     ):
         super().__init__()
-        self.train_dir = train_dir
-        self.val_dir = val_dir
-        self.test_dir = test_dir
+        self.vocab = vocab
+        self.collate_fn = collate_fn
+        self.seq_length = seq_length
+        self.dir_train = dir_train
+        self.dir_val = dir_val
+        self.dir_test = dir_test
         self.train_dataset: EHRDataset = None
         self.val_dataset: EHRDataset = None
         self.test_dataset: EHRDataset = None
         self.annotated = annotated
-        if isinstance(num_workers, int):
-            self.train_workers = self.val_workers = num_workers
-            if self.test_dir is not None:
-                self.test_workers = num_workers
-        else:
-            if self.test_dir is not None:
-                (
-                    self.train_workers,
-                    self.val_workers,
-                    self.test_workers,
-                ) = num_workers
-            else:
-                (
-                    self.train_workers,
-                    self.val_workers,
-                ) = num_workers
-
-        if isinstance(batch_sizes, int):
-            self.train_batch_size = self.val_batch_size = batch_sizes
+        self.batch_size_train = batch_size_train
+        self.batch_size_val = batch_size_val
+        self.batch_size_test = batch_size_test
+        self.num_workers_train = num_workers_train
+        self.num_workers_val = num_workers_val
+        self.num_workers_test = num_workers_test
+        self.shuffle_train = shuffle_train
+        self.shuffle_val = shuffle_val
+        self.shuffle_test = shuffle_test
 
     def setup(self, stage: Optional[str] = None):
-        if self.train_dir is not None:
+        if self.dir_train is not None:
             self.train_dataset = EHRDataset(
-                dir=self.train_dir, annotated=self.annotated
+                dir=self.dir_train,
+                vocab=self.vocab,
+                annotated=self.annotated,
+                seq_length=self.seq_length,
             )
-        if self.val_dir is not None:
+        if self.dir_val is not None:
             self.val_dataset = EHRDataset(
-                dir=self.val_dir, annotated=self.annotated
+                dir=self.dir_val,
+                vocab=self.vocab,
+                annotated=self.annotated,
+                seq_length=self.seq_length,
             )
-        if self.test_dir is not None:
+        if self.dir_test is not None:
             self.test_dataset = EHRDataset(
-                dir=self.test_dir, annotated=self.annotated
+                dir=self.dir_test,
+                vocab=self.vocab,
+                annotated=self.annotated,
+                seq_length=self.seq_length,
             )
 
     def train_dataloader(self):
+        if self.train_dataset is None:
+            return
         return DataLoader(
             self.train_dataset,
-            batch_size=self.train_batch_size,
-            shuffle=True,
-            num_workers=self.train_workers,
+            batch_size=self.batch_size_train,
+            shuffle=self.shuffle_train,
+            num_workers=self.num_workers_train,
+            collate_fn=self.collate_fn,
         )
 
     def val_dataloader(self):
+        if self.val_dataset is None:
+            return
         return DataLoader(
             self.val_dataset,
-            batch_size=self.val_batch_size,
-            shuffle=False,
-            num_workers=self.val_workers,
+            batch_size=self.batch_size_val,
+            shuffle=self.shuffle_val,
+            num_workers=self.num_workers_val,
+            collate_fn=self.collate_fn,
         )
 
     def test_dataloader(self):
+        if self.test_dataset is None:
+            return
         return DataLoader(
-            self.val_dataset,
-            batch_size=self.val_batch_size,
-            shuffle=False,
-            num_workers=self.val_workers,
+            self.test_dataset,
+            batch_size=self.batch_size_test,
+            shuffle=self.shuffle_test,
+            num_workers=self.num_workers_test,
+            collate_fn=self.collate_fn,
         )
