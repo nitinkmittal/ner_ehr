@@ -6,13 +6,12 @@ from pathlib import Path
 from typing import List, Union
 
 import pandas as pd
-from pandera import check_output
 import pandera as pa
-from pandera import Column, DataFrameSchema
-
-from ner_ehr.data.variables import AnnotationTuple, TokenTuple
+from pandera import Column, DataFrameSchema, check_output
 
 from ner_ehr.data import Constants
+from ner_ehr.data.utils import read_csv
+from ner_ehr.data.variables import AnnotationTuple, TokenTuple
 
 df_schema = {
     "doc_id": Column(pa.String, nullable=False),
@@ -28,6 +27,7 @@ annotations_df_schema = DataFrameSchema(
     {field: df_schema[field] for field in AnnotationTuple._fields}
 )
 
+# TODO: strict column checking for while reading unannotated tokens
 # schema for tokens dataframe
 tokens_df_schema = DataFrameSchema(
     {field: df_schema[field] for field in TokenTuple._fields}
@@ -51,10 +51,6 @@ annotations_col_converters = {
 tokens_col_converters = {
     field: col_converters[field] for field in TokenTuple._fields
 }
-
-
-def read_csv(fp: Union[Path, str], **kwargs) -> pd.core.frame.DataFrame:
-    return pd.read_csv(fp, **kwargs)
 
 
 class EHR(ABC):
@@ -104,7 +100,7 @@ class EHR(ABC):
             how="left",
         )
         self.tokens_with_annotations["entity"].fillna(
-            Constants.UNTAG_ENTITY_LABEL, inplace=True
+            Constants.UNTAG_ENTITY_LABEL.value, inplace=True
         )
         annotations_df_schema.validate(self.tokens_with_annotations)
         self._write_csv(fp=fp, is_annotated=True)
@@ -124,6 +120,7 @@ class EHR(ABC):
     def read_csv_tokens_with_annotations(
         fp: Union[Path, str]
     ) -> pd.core.frame.DataFrame:
+        """Read CSV with annotated tokens."""
         return read_csv(fp=fp, converters=annotations_col_converters)
 
     @staticmethod
@@ -131,4 +128,5 @@ class EHR(ABC):
     def read_csv_tokens_without_annotations(
         fp: Union[Path, str]
     ) -> pd.core.frame.DataFrame:
+        """Read CSV with unannotated tokens."""
         return read_csv(fp=fp, converters=tokens_col_converters)
