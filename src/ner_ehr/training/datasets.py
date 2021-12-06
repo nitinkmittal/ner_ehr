@@ -13,10 +13,17 @@ from torch.utils.data import DataLoader, Dataset
 
 from ner_ehr.data import Constants
 from ner_ehr.data.ehr import EHR
-from ner_ehr.data.utils import (TokenEntityVocab, df_to_namedtuples,
-                                generate_token_seqs)
-from ner_ehr.data.variables import (AnnotationTuple, LongAnnotationTuple,
-                                    TokenTuple)
+from ner_ehr.data.utils import (
+    df_to_namedtuples,
+    generate_token_seqs,
+)
+from ner_ehr.data.variables import (
+    AnnotationTuple,
+    LongAnnotationTuple,
+    TokenTuple,
+)
+
+from ner_ehr.data.vocab import TokenEntityVocab
 
 DEFAULT_ANNOTATED: bool = False
 DEFAULT_SEQ_LENGTH: int = 256
@@ -57,7 +64,7 @@ class EHRDataset(Dataset):
 
     def _setup(
         self,
-    ) -> Union[List[TokenTuple], List[AnnotationTuple]]:
+    ):
         """Helper function to read and generate sequences of annotated tokens.
 
         Note: if `annotated` flag is False, then outside entity label is
@@ -154,22 +161,26 @@ class EHRBatchCollator(ABC):
             padding_value=Constants.UNTAG_ENTITY_INT_LABEL.value,
         )
 
-        meta = [
-            (
-                long_annotatedtuple.doc_id,
-                long_annotatedtuple.token,
-                long_annotatedtuple.start_idx,
-                long_annotatedtuple.end_idx,
-                long_annotatedtuple.entity,
-            )
-            for long_annotatedtuples in batch
-            for long_annotatedtuple in long_annotatedtuples
-        ]
-
         if self.return_meta:
+            meta = [
+                [
+                    [
+                        long_annotatedtuple.doc_id,
+                        long_annotatedtuple.token,
+                        long_annotatedtuple.start_idx,
+                        long_annotatedtuple.end_idx,
+                        long_annotatedtuple.entity,
+                    ]
+                    for long_annotatedtuple in long_annotatedtuples
+                ]
+                for long_annotatedtuples in batch
+            ]
             return X, Y, meta
 
         return X, Y, None
+
+
+DEFAULT_COLLATE_FUNC = EHRBatchCollator(return_meta=True)
 
 
 class EHRDataModule(LightningDataModule):
@@ -178,18 +189,11 @@ class EHRDataModule(LightningDataModule):
     def __init__(
         self,
         vocab: TokenEntityVocab,
-        collate_fn: Callable[
-            [List[LongAnnotationTuple]],
-            Tuple[
-                Tuple[torch.Tensor, torch.Tensor],
-                Optional[List[Tuple[str, str, int, int, str]]],
-            ],
-        ],
+        seq_length: int = DEFAULT_SEQ_LENGTH,
+        annotated: bool = DEFAULT_ANNOTATED,
         dir_train: Optional[Union[Path, str]] = None,
         dir_val: Optional[Union[Path, str]] = None,
         dir_test: Optional[Union[Path, str]] = None,
-        seq_length: int = DEFAULT_SEQ_LENGTH,
-        annotated: bool = DEFAULT_ANNOTATED,
         batch_size_train: int = DEFAULT_BATCH_SIZE,
         batch_size_val: int = DEFAULT_BATCH_SIZE,
         batch_size_test: int = DEFAULT_BATCH_SIZE,
@@ -199,18 +203,38 @@ class EHRDataModule(LightningDataModule):
         shuffle_train: bool = DEFAULT_SHUFFLE_TRAIN,
         shuffle_val: bool = DEFAULT_SHUFFLE_VAL,
         shuffle_test: bool = DEFAULT_SHUFFLE_TEST,
+        collate_fn_train: Callable[
+            [List[LongAnnotationTuple]],
+            Tuple[
+                Tuple[torch.Tensor, torch.Tensor],
+                Optional[List[Tuple[str, str, int, int, str]]],
+            ],
+        ] = DEFAULT_COLLATE_FUNC,
+        collate_fn_val: Callable[
+            [List[LongAnnotationTuple]],
+            Tuple[
+                Tuple[torch.Tensor, torch.Tensor],
+                Optional[List[Tuple[str, str, int, int, str]]],
+            ],
+        ] = DEFAULT_COLLATE_FUNC,
+        collate_fn_test: Callable[
+            [List[LongAnnotationTuple]],
+            Tuple[
+                Tuple[torch.Tensor, torch.Tensor],
+                Optional[List[Tuple[str, str, int, int, str]]],
+            ],
+        ] = DEFAULT_COLLATE_FUNC,
     ):
         super().__init__()
         self.vocab = vocab
-        self.collate_fn = collate_fn
         self.seq_length = seq_length
+        self.annotated = annotated
         self.dir_train = dir_train
         self.dir_val = dir_val
         self.dir_test = dir_test
         self.train_dataset: EHRDataset = None
         self.val_dataset: EHRDataset = None
         self.test_dataset: EHRDataset = None
-        self.annotated = annotated
         self.batch_size_train = batch_size_train
         self.batch_size_val = batch_size_val
         self.batch_size_test = batch_size_test
@@ -220,6 +244,9 @@ class EHRDataModule(LightningDataModule):
         self.shuffle_train = shuffle_train
         self.shuffle_val = shuffle_val
         self.shuffle_test = shuffle_test
+        self.collate_fn_train = collate_fn_train
+        self.collate_fn_val = collate_fn_val
+        self.collate_fn_test = collate_fn_test
 
     def setup(self, stage: Optional[str] = None):
         if self.dir_train is not None:
@@ -252,7 +279,7 @@ class EHRDataModule(LightningDataModule):
             batch_size=self.batch_size_train,
             shuffle=self.shuffle_train,
             num_workers=self.num_workers_train,
-            collate_fn=self.collate_fn,
+            collate_fn=self.collate_fn_train,
         )
 
     def val_dataloader(self):
@@ -263,7 +290,7 @@ class EHRDataModule(LightningDataModule):
             batch_size=self.batch_size_val,
             shuffle=self.shuffle_val,
             num_workers=self.num_workers_val,
-            collate_fn=self.collate_fn,
+            collate_fn=self.collate_fn_val,
         )
 
     def test_dataloader(self):
@@ -274,5 +301,5 @@ class EHRDataModule(LightningDataModule):
             batch_size=self.batch_size_test,
             shuffle=self.shuffle_test,
             num_workers=self.num_workers_test,
-            collate_fn=self.collate_fn,
+            collate_fn=self.collate_fn_test,
         )
