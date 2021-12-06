@@ -7,7 +7,9 @@ dependencies:
   - gensim
   - ipykernel=5.5.5
   - isort
+  - ipywidgets
   - jupyterlab=3.2.2
+  - jupyterlab_widgets
   - matplotlib
   - nltk
   - numpy
