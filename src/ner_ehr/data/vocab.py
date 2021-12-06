@@ -4,8 +4,12 @@ from collections import Counter, defaultdict
 from typing import Dict, List, Union
 
 from ner_ehr.data import Constants
-from ner_ehr.data.variables import (AnnotationTuple, LongAnnotation,
-                                    LongAnnotationTuple)
+from ner_ehr.data.variables import (
+    AnnotationTuple,
+    LongAnnotation,
+    LongAnnotationTuple,
+)
+from ner_ehr.utils import validate_list
 
 
 class TokenEntityVocab(ABC):
@@ -23,7 +27,10 @@ class TokenEntityVocab(ABC):
 
     def __init__(
         self,
+        to_lower: bool = True,
     ):
+
+        self.to_lower = to_lower
 
         # stores all unique tokens
         self.uniq_tokens = set(
@@ -98,6 +105,12 @@ class TokenEntityVocab(ABC):
     def token_doc_freq(self, arg) -> Dict[str, int]:
         pass
 
+    def _to_lower(self, token: str) -> str:
+        """Lowercase token if specified"""
+        if self.to_lower:
+            return token.lower()
+        return token
+
     def _add_token(self, token: str) -> None:
         """Helper function to add token and assign it's index."""
         self.uniq_tokens.add(token)
@@ -141,23 +154,18 @@ class TokenEntityVocab(ABC):
                         entity='O'),
                 ]
         """
-        for token in annotatedtuples:
-            self._add_token(token=token.token)
-            self._add_entity(entity=token.entity)
-            self.token_entity_freq[token.token].update({token.entity: 1})
-            self.__token_doc_freq[token.token].add(token.doc_id)
-
-    def _validate_list(self, l: List[Union[int, str]], dtype: type):
-        """Helper function to validate given type of input and it's value."""
-        if not isinstance(l, list):
-            raise TypeError(f"Expect input to be a list, not {type(l)}")
-
-        if not all(isinstance(item, dtype) for item in l):
-            raise TypeError(
-                f"Expected dtype of all items in list to be {dtype}"
+        for tokentuple in annotatedtuples:
+            tokentuple = tokentuple._replace(
+                token=self._to_lower(token=tokentuple.token)
             )
+            self._add_token(token=tokentuple.token)
+            self._add_entity(entity=tokentuple.entity)
+            self.token_entity_freq[tokentuple.token].update(
+                {tokentuple.entity: 1}
+            )
+            self.__token_doc_freq[tokentuple.token].add(tokentuple.doc_id)
 
-    def token_to_idx(self, tokens: List[str]) -> List[int]:
+    def token_to_idx(self, tokens: Union[str, List[str]]) -> List[int]:
         """Convert list of string tokens into list of integer (index) tokens.
 
         Note: indexes for unkown tokens(token not in vocab)
@@ -171,10 +179,14 @@ class TokenEntityVocab(ABC):
             idxs: list of integer (index) token
                 [2, 3]
         """
-        self._validate_list(tokens, str)
-        return [self._token_to_idx[token] for token in tokens]
+        if isinstance(tokens, str):
+            tokens = [tokens]
+        validate_list(tokens, str)
+        return [
+            self._token_to_idx[self._to_lower(token=token)] for token in tokens
+        ]
 
-    def idx_to_token(self, idxs: List[int]) -> List[str]:
+    def idx_to_token(self, idxs: Union[int, List[int]]) -> List[str]:
         """Convert list of integer (index) tokens into list of string tokens.
 
         Note: indexes for unknown tokens(token not in vocab)
@@ -188,10 +200,12 @@ class TokenEntityVocab(ABC):
             tokens: list of string tokens
                 ["Admission", "data"]
         """
-        self._validate_list(idxs, int)
+        if isinstance(idxs, int):
+            idxs = [idxs]
+        validate_list(idxs, int)
         return [self._idx_to_token[idx] for idx in idxs]
 
-    def entity_to_label(self, entities: List[str]) -> List[int]:
+    def entity_to_label(self, entities: Union[str, List[str]]) -> List[int]:
         """Convert list of string entities into list of integer (label) entities.
 
         Args:
@@ -202,10 +216,13 @@ class TokenEntityVocab(ABC):
             labels: list of integer (label) entities
                 [2, 3]
         """
-        self._validate_list(entities, str)
+        if isinstance(entities, str):
+            entities = [entities]
+
+        validate_list(entities, str)
         return [self._entity_to_label[entity] for entity in entities]
 
-    def label_to_entity(self, labels: List[int]) -> List[str]:
+    def label_to_entity(self, labels: Union[int, List[int]]) -> List[str]:
         """Convert list of integer (label) entities into list of string entities.
 
         Args:
@@ -216,7 +233,9 @@ class TokenEntityVocab(ABC):
             entities: list of string entities
                 ["B-Frequency", "I-Frequency"]
         """
-        self._validate_list(labels, int)
+        if isinstance(labels, int):
+            labels = [labels]
+        validate_list(labels, int)
         return [self._label_to_entity[label] for label in labels]
 
     def annotation_to_longannotation(
