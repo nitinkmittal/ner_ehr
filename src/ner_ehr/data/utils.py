@@ -7,29 +7,60 @@ import pandas as pd
 from ner_ehr.data.variables import AnnotationTuple, TokenTuple
 
 
-def sort_namedtuples(
-    func: Callable[[Any], Union[List[AnnotationTuple], List[TokenTuple]]],
-    by: Union[str, List[str]] = "start_idx",
-):
-    """Wrapper to sort list of AnnotationTuples or TokenTuples
-    by `start_idx` in ascending order.
+# def sort_namedtuples(
+#     func: Callable[[Any], Union[List[AnnotationTuple], List[TokenTuple]]],
+#     by: Union[str, List[str]] = ["doc_id", "start_idx"],
+# ):
+#     """Wrapper to sort list of AnnotationTuples or TokenTuples
+#     by `start_idx` in ascending order.
 
-    Note: NamedTuples are sort in ascending order by start_idx
+#     Note: NamedTuples are sort in ascending order by doc_id, start_idx
+#     """
+
+#     def wrapper(*args, **kwargs):
+#         namedtuples = func(*args, **kwargs)
+
+#         if "doc_id" not in namedtuples[0]._fields:
+#             raise AttributeError(
+#                 f"Field `doc_id` missing in {type(namedtuples[0]).__name__}"
+#             )
+
+#         if "start_idx" not in namedtuples[0]._fields:
+#             raise AttributeError(
+#                 f"Field `start_idx` missing in {type(namedtuples[0]).__name__}"
+#             )
+#         df = pd.DataFrame(namedtuples).sort_values(by=by)
+#         return list(
+#             df.itertuples(name=type(namedtuples[0]).__name__, index=False)
+#         )
+
+#     return wrapper
+
+
+def sort_namedtuples(
+    namedtuples: Union[List[AnnotationTuple], List[TokenTuple]],
+    by: Union[str, List[str]] = ["doc_id", "start_idx"],
+    ascending: bool = True,
+):
+    """Sort list of TokenTuples/AnnotationTuples/LongAnnotationTuples
+    by given condition in given order.
+
+    Note: NamedTuples are sort in ascending order by doc_id, start_idx
     """
 
-    def wrapper(*args, **kwargs):
-        namedtuples = func(*args, **kwargs)
-
-        if "start_idx" not in namedtuples[0]._fields:
+    def check_field(field: str):
+        if field not in namedtuples[0]._fields:
             raise AttributeError(
-                f"Field start_idx missing in {type(namedtuples[0]).__name__}"
+                f"Field `{field}` missing in `{type(namedtuples[0]).__name__}`"
             )
-        df = pd.DataFrame(namedtuples).sort_values(by=by)
-        return list(
-            df.itertuples(name=type(namedtuples[0]).__name__, index=False)
-        )
 
-    return wrapper
+    if isinstance(by, str):
+        by = [by]
+    for field in by:
+        check_field(field=field)
+
+    df = pd.DataFrame(namedtuples).sort_values(by=by, ascending=ascending)
+    return list(df.itertuples(name=type(namedtuples[0]).__name__, index=False))
 
 
 def df_to_namedtuples(
