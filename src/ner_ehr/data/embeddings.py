@@ -49,8 +49,11 @@ class Embeddings(ABC):
                 if True, tokens are lowercased otherwise not
 
         Returns:
-            A NumPy array with pre-trained embeddings
+            A 2-D NumPy array with pre-trained embeddings
         """
+        if isinstance(tokens, str):
+            tokens = [tokens]
+
         validate_list(l=tokens, dtype=str)
         embeddings = []
         for token in tokens:
