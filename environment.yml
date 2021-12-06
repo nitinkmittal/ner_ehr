@@ -4,9 +4,12 @@ channels:
 dependencies:
   - black
   - flake8
+  - gensim
   - ipykernel=5.5.5
   - isort
+  - ipywidgets
   - jupyterlab=3.2.2
+  - jupyterlab_widgets
   - matplotlib
   - nltk
   - numpy
@@ -14,6 +17,7 @@ dependencies:
   - pandas
   - pip=21.3.1
   - python=3.6.9
+  - scikit-learn
   - pip:
     - pytorch-lightning
     - scispacy

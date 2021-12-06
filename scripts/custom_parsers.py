@@ -93,7 +93,6 @@ class CustomAnnotationParser(AnnotationParser):
                 annotations.append(annotation)
         return annotations
 
-    @sort_namedtuples
     def parse(
         self,
         annotations_fp: Union[Path, str],
@@ -189,7 +188,9 @@ class CustomAnnotationParser(AnnotationParser):
         # resetting this flag to avoid character index validation for substrings
         self.tokenizer.validate_token_idxs = validate_token_idxs
 
-        return self.annotations
+        return sort_namedtuples(
+            self.annotations, by=["doc_id", "start_idx"], ascending=True
+        )
 
 
 class CustomTokenParser(TokenParser):
@@ -226,7 +227,6 @@ class CustomTokenParser(TokenParser):
             )
             self.tokens.append(token)
 
-    @sort_namedtuples
     def parse(
         self,
         record_fp: Union[Path, str],
@@ -322,4 +322,6 @@ class CustomTokenParser(TokenParser):
         # resetting this flag to avoid character index validation for substrings
         self.tokenizer.validate_token_idxs = validate_token_idxs
 
-        return self.tokens
+        return sort_namedtuples(
+            self.tokens, by=["doc_id", "start_idx"], ascending=True
+        )
