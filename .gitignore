@@ -134,3 +134,5 @@ dmypy.json
 *.zip
 .vscode
 *.csv
+*.ckpt
+*.yaml
