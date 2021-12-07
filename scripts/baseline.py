@@ -1,11 +1,10 @@
 import glob
 from typing import List
+
 import pandas as pd
-
-from sklearn.metrics import classification_report
-
 from datasets.dataset import NerDataset
-from datasets.vocab import Vocab
+from datasets.vocab import TokenEntityVocab
+from sklearn.metrics import classification_report
 
 
 class BaseModel:
