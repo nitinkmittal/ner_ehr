@@ -25,11 +25,12 @@ from ner_ehr.data.variables import (
 
 from ner_ehr.data.vocab import TokenEntityVocab
 
-DEFAULT_ANNOTATED: bool = False
+
 DEFAULT_SEQ_LENGTH: int = 256
+DEFAULT_ANNOTATED: bool = False
 DEFAULT_BATCH_SIZE: int = 1
 DEFAULT_SHUFFLE_TRAIN: bool = True
-DEFAULT_SHUFFLE_VAL: bool = True
+DEFAULT_SHUFFLE_VAL: bool = False
 DEFAULT_SHUFFLE_TEST: bool = False
 DEFAULT_NUM_WORKERS: int = 1
 
@@ -48,12 +49,12 @@ class EHRDataset(Dataset):
 
             vocab: ner_data.utils.TokenEntityVocab object trained on annotationtuples
 
+            seq_length: maximum number of tokens in a sequence
+                default: 256
+
             annotated: boolean flag
                 if True, tokens with annotations are read,
                 otherwise without annotations are read
-
-            seq_length: maximum number of tokens in a sequence
-                default: 256
         """
         self.dir = dir
         self.vocab = vocab
