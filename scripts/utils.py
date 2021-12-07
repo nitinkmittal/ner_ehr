@@ -1,11 +1,13 @@
 from typing import Union, List
 from pathlib import Path
 from ner_ehr.data.variables import AnnotationTuple, LongAnnotationTuple
-from ner_ehr.data.utils import df_to_namedtuples, TokenEntityVocab
+from ner_ehr.data.utils import df_to_namedtuples
 from ner_ehr.data.ehr import EHR
 import os
 from glob import glob
 from sklearn.preprocessing import LabelEncoder
+
+from ner_ehr.data.vocab import TokenEntityVocab
 
 
 def read_annotatedtuples(dir: Union[str, Path]) -> List[AnnotationTuple]:
