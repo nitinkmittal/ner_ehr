@@ -8,6 +8,8 @@ from gensim.models import KeyedVectors, keyedvectors
 
 from ner_ehr.utils import copy_docstring, validate_list
 
+TO_LOWER: bool = False
+
 
 class Embeddings(ABC):
     """Base class for embeddings.
@@ -16,7 +18,12 @@ class Embeddings(ABC):
     in gensim.word2vec format
     """
 
-    def __init__(self, unknown_token_embedding: np.ndarray, **kwargs):
+    def __init__(
+        self,
+        unknown_token_embedding: np.ndarray,
+        to_lower: bool = TO_LOWER,
+        **kwargs,
+    ):
         """
         Args:
             unknown_token_embedding: embedding vector for tokens not
@@ -24,19 +31,22 @@ class Embeddings(ABC):
                 embedding vector should be equal to dimension of pre-trained
                 embedding vectors
 
+            to_lower: boolean flag, default=True
+                if True, tokens are lowercased otherwise not
+
             **kwargs: other keyword-arguments
         """
-        self.embeddings: keyedvectors.KeyedVectors = None
+
+        self.to_lower = to_lower
         self.unknown_token_embedding = unknown_token_embedding
+        self.embeddings: keyedvectors.KeyedVectors = None
         self.__dict__.update(kwargs)
 
     def load_word2vec(self, **kwargs) -> None:
         """Helper function to load embeddings in form of genism word2vec."""
         raise NotImplementedError("Not implemented ..")
 
-    def __call__(
-        self, tokens: Union[str, List[str]], to_lower: bool = True
-    ) -> np.ndarray:
+    def __call__(self, tokens: Union[str, List[str]]) -> np.ndarray:
         """Return NumPy array containing embedding vectors for given tokens
 
         `unknown_token_embedding` is used for tokens not present
@@ -44,9 +54,6 @@ class Embeddings(ABC):
 
         Args:
             tokens: a list of string tokens
-
-            to_lower: boolean flag, default=True
-                if True, tokens are lowercased otherwise not
 
         Returns:
             A 2-D NumPy array with pre-trained embeddings
@@ -57,7 +64,7 @@ class Embeddings(ABC):
         validate_list(l=tokens, dtype=str)
         embeddings = []
         for token in tokens:
-            token = token.lower() if to_lower else token
+            token = token.lower() if self.to_lower else token
             embeddings.append(
                 self.embeddings.get_vector(token)
                 if token in self.embeddings.key_to_index
@@ -69,10 +76,15 @@ class Embeddings(ABC):
 
 class GloveEmbeddings(Embeddings):
     def __init__(
-        self, unknown_token_embedding: np.ndarray, glove_fp: Union[str, Path]
+        self,
+        unknown_token_embedding: np.ndarray,
+        glove_fp: Union[str, Path],
+        to_lower: bool = TO_LOWER,
     ):
         super().__init__(
-            unknown_token_embedding=unknown_token_embedding, glove_fp=glove_fp
+            unknown_token_embedding=unknown_token_embedding,
+            to_lower=to_lower,
+            glove_fp=glove_fp,
         )
 
     @copy_docstring(Embeddings.load_word2vec)
@@ -102,10 +114,14 @@ class GloveEmbeddings(Embeddings):
 
 class PubMedicalEmbeddings(Embeddings):
     def __init__(
-        self, unknown_token_embedding: np.ndarray, pubmed_fp: Union[str, Path]
+        self,
+        unknown_token_embedding: np.ndarray,
+        pubmed_fp: Union[str, Path],
+        to_lower: bool = TO_LOWER,
     ):
         super().__init__(
             unknown_token_embedding=unknown_token_embedding,
+            to_lower=to_lower,
             pubmed_fp=pubmed_fp,
         )
 

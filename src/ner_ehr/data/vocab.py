@@ -11,6 +11,8 @@ from ner_ehr.data.variables import (
 )
 from ner_ehr.utils import validate_list
 
+TO_LOWER: bool = False
+
 
 class TokenEntityVocab(ABC):
     """Creates a vocabulary from list of annotated tuples.
@@ -27,7 +29,7 @@ class TokenEntityVocab(ABC):
 
     def __init__(
         self,
-        to_lower: bool = True,
+        to_lower: bool = TO_LOWER,
     ):
 
         self.to_lower = to_lower
