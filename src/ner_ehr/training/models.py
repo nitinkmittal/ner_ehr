@@ -1,8 +1,6 @@
-import os
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import Optional, Union
 
-import numpy as np
 import pytorch_lightning as pl
 import torch
 from torch import Tensor, nn
@@ -97,7 +95,7 @@ class LitLSTMNERTagger(pl.LightningModule):
 
         self.save_hyperparameters()
 
-        self.embedding_weights: Tensor = None
+        embedding_weights: Tensor = None
         # load per-trained embeddings if given
         if embedding_weights_fp is not None:
             embedding_weights = load_np(fp=embedding_weights_fp)
@@ -126,22 +124,29 @@ class LitLSTMNERTagger(pl.LightningModule):
 
         loss = cross_entropy(Y_hat=Y_hat, Y=Y)
 
-        accs = accuracy_per_class(Y_hat=Y_hat, Y=Y)
+        overall_acc, label_accs = accuracy_per_class(Y_hat=Y_hat, Y=Y)
 
         self.log(
             "train_loss",
             loss.item(),
             on_step=True,
             on_epoch=True,
-            # batch_size=len(X),
+            batch_size=len(X),
         )
-        for i, acc in enumerate(accs):
+        self.log(
+            "train_acc",
+            overall_acc,
+            on_step=True,
+            on_epoch=True,
+            batch_size=len(X),
+        )
+        for label, acc in enumerate(label_accs):
             self.log(
-                f"train_acc_class={i}",
+                f"train_acc_label={label}",
                 acc,
                 on_step=True,
                 on_epoch=True,
-                # batch_size=len(X),
+                batch_size=len(X),
             )
 
         return loss
@@ -152,7 +157,7 @@ class LitLSTMNERTagger(pl.LightningModule):
 
         loss = cross_entropy(Y_hat=Y_hat, Y=Y)
 
-        accs = accuracy_per_class(Y_hat=Y_hat, Y=Y)
+        overall_acc, label_accs = accuracy_per_class(Y_hat=Y_hat, Y=Y)
 
         self.log(
             "val_loss",
@@ -161,16 +166,21 @@ class LitLSTMNERTagger(pl.LightningModule):
             on_epoch=True,
             batch_size=len(X),
         )
-        for i, acc in enumerate(accs):
+        self.log(
+            "val_acc",
+            overall_acc,
+            on_step=True,
+            on_epoch=True,
+            batch_size=len(X),
+        )
+        for label, acc in enumerate(label_accs):
             self.log(
-                f"val_acc_class={i}",
+                f"val_acc_label={label}",
                 acc,
                 on_step=True,
                 on_epoch=True,
                 batch_size=len(X),
             )
-
-        return loss
 
     def configure_optimizers(self):
         return torch.optim.Adam(

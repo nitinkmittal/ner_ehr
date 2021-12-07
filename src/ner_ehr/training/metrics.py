@@ -1,12 +1,13 @@
 import numpy as np
 
 import torch
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix, accuracy_score
 from torch import nn
 from torch import Tensor
+from typing import Tuple
 
 
-def accuracy_per_class(Y_hat: Tensor, Y: Tensor):
+def accuracy_per_class(Y_hat: Tensor, Y: Tensor) -> Tuple[float, np.ndarray]:
     """
     Args:
         Y_hat: (B, S, num_classes)
@@ -19,7 +20,7 @@ def accuracy_per_class(Y_hat: Tensor, Y: Tensor):
             num_classes: number of classes/labels
 
     Returns:
-        A array with accuracies per class label
+        A Tuple with overall accuracy and array with accuracies per class label
     """
 
     X1 = Y.view(-1)
@@ -34,6 +35,10 @@ def accuracy_per_class(Y_hat: Tensor, Y: Tensor):
             X2 = X2.cpu()
         labels = np.arange(Y_hat.size(-1))
 
-    return confusion_matrix(
-        y_true=X1, y_pred=X2, labels=labels, normalize="true"
-    ).diagonal()
+    total_acc = accuracy_score(y_true=X1, y_pred=X2)
+    return (
+        total_acc,
+        confusion_matrix(
+            y_true=X1, y_pred=X2, labels=labels, normalize="true"
+        ).diagonal(),
+    )
