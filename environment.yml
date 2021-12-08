@@ -17,6 +17,7 @@ dependencies:
   - pandas
   - pip=21.3.1
   - python=3.6.9
+  - seaborn
   - scikit-learn
   - pip:
     - pytorch-lightning
