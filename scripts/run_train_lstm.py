@@ -18,7 +18,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import CSVLogger
 from tqdm import tqdm
 
-from utils import read_annotatedtuples
+from ner_ehr.utils import read_annotatedtuples
 
 logger = logging.getLogger(__name__)
 
@@ -390,7 +390,7 @@ def run_model(
     bidirectional: bool,
     num_lstm_layers: int,
     lstm_dropout: float,
-    lr=lr,
+    lr,
     epochs: int,
     save_cm_after_every_n_epochs: int,
     log_dir: int,
