@@ -1,32 +1,29 @@
 import argparse
 import logging
 import os
-import sys
 import warnings
 from pathlib import Path
-from typing import List, Optional, Union, Dict, Any
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import pytorch_lightning as pl
 import torch
-
-from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks import ModelCheckpoint
-from pytorch_lightning.loggers import CSVLogger
-from tqdm import tqdm
-
 from ner_ehr.data.embeddings import GloveEmbeddings, PubMedicalEmbeddings
 from ner_ehr.data.vocab import TokenEntityVocab
 from ner_ehr.training.datasets import EHRBatchCollator, EHRDataModule
 from ner_ehr.training.models import LitLSTMNERTagger
 from ner_ehr.utils import save_np
+from pytorch_lightning import Trainer
+from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.loggers import CSVLogger
+from tqdm import tqdm
 
 from utils import read_annotatedtuples
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_TO_LOWER: str = "Y"
-DEFAULT_MAX_SEQ_LENGTH: int = 512
+DEFAULT_MAX_SEQ_LENGTH: int = 256
 DEFAULT_EMBED_DIM: int = 50
 DEFAULT_USE_PRE_TRAINED_EMBED: str = "N"
 DEFAULT_AVAILABLE_PRE_TRAINED_EMBED_TYPES: List[str] = [
@@ -54,8 +51,9 @@ DEFAULT_USE_BIDIRECTIONAL_LSTM: str = "N"
 DEFAULT_NUM_LSTM_LAYERS: int = 1
 DEFAULT_LSTM_DROPOUT: float = 0.1
 
+DEFAULT_LR: float = 0.001
 DEFAULT_NUM_EPOCHS: int = 1
-
+DEFAULT_SAVE_CM_AFTER_EVERY_N_EPOCHS: int = 1
 DEFAULT_DEVICE_TYPE = torch.device(
     "cuda:0" if torch.cuda.is_available() else "cpu"
 )
@@ -72,7 +70,6 @@ DEFAULT_MODE: str = "min"
 DEFAULT_SAVE_TOP_K: int = 1
 DEFAULT_NUM_SANITY_VAL_STEPS: int = 1
 DEFAULT_LOG_EVERY_N_STEPS: int = 1
-
 DEFAULT_RANDOM_SEED: int = 42
 
 
@@ -198,7 +195,7 @@ def parse_arguments():
 
     parser.add_argument(
         "--hidden_size",
-        type=str,
+        type=int,
         help=(
             "number of hidden units in each lstm layer, "
             f"default: {DEAULT_HIDDEN_SIZE}"
@@ -234,10 +231,27 @@ def parse_arguments():
     )
 
     parser.add_argument(
+        "--lr",
+        type=float,
+        help=f"learning rate, default: {DEFAULT_LR}",
+        default=DEFAULT_LR,
+    )
+
+    parser.add_argument(
         "--num_epochs",
         type=int,
         help=f"number of training epochs, default: {DEFAULT_NUM_EPOCHS}",
         default=DEFAULT_NUM_EPOCHS,
+    )
+
+    parser.add_argument(
+        "--save_cm_after_every_n_epochs",
+        type=int,
+        help=(
+            "number of training epochs before saving a confusion matrix "
+            f", default: {DEFAULT_SAVE_CM_AFTER_EVERY_N_EPOCHS}"
+        ),
+        default=DEFAULT_SAVE_CM_AFTER_EVERY_N_EPOCHS,
     )
 
     parser.add_argument(
@@ -256,13 +270,7 @@ def parse_arguments():
         default=DEFAULT_RANDOM_SEED,
     )
 
-    try:
-        arguments = parser.parse_args()
-    except Exception as e:
-        parser.print_help()
-        print(f"Exception: {e}")
-        sys.exit(0)
-
+    arguments = parser.parse_args()
     return arguments
 
 
@@ -310,7 +318,9 @@ def main():
         bidirectional=True if args.use_bilstm == "Y" else False,
         num_lstm_layers=args.num_lstm_layers,
         lstm_dropout=args.lstm_dropout,
+        lr=args.lr,
         epochs=args.num_epochs,
+        save_cm_after_every_n_epochs=args.save_cm_after_every_n_epochs,
         log_dir=args.log_dir,
         experiment_name=DEFAULT_EXPERIMENT_NAME,
         random_seed=args.random_seed,
@@ -380,7 +390,9 @@ def run_model(
     bidirectional: bool,
     num_lstm_layers: int,
     lstm_dropout: float,
+    lr=lr,
     epochs: int,
+    save_cm_after_every_n_epochs: int,
     log_dir: int,
     experiment_name: str,
     random_seed: int,
@@ -436,6 +448,8 @@ def run_model(
         num_lstm_layers=num_lstm_layers,
         bidirectional=bidirectional,
         lstm_dropout=lstm_dropout,
+        save_cm_after_every_n_epochs=save_cm_after_every_n_epochs,
+        lr=lr,
         parser_args=parser_args,
     )
 
