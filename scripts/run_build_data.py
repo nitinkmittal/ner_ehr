@@ -8,12 +8,8 @@ from typing import List, Union
 import numpy as np
 from ner_ehr.data.ehr import EHR
 from ner_ehr.data.variables import AnnotationTuple, TokenTuple
-from ner_ehr.tokenizers import (
-    NLTKTokenizer,
-    ScispacyTokenizer,
-    SplitTokenizer,
-    Tokenizer,
-)
+from ner_ehr.tokenizers import (NLTKTokenizer, ScispacyTokenizer,
+                                SplitTokenizer, Tokenizer)
 from ner_ehr.utils import save_kwargs
 from tqdm import tqdm
 
