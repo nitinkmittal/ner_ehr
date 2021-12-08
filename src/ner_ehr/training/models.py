@@ -1,12 +1,16 @@
+import os
 from pathlib import Path
 from typing import Optional, Union
 
+import numpy as np
 import pytorch_lightning as pl
 import torch
 from torch import Tensor, nn
-from ner_ehr.utils import load_np
+
+from ner_ehr.data import Constants
+from ner_ehr.training import metrics
 from ner_ehr.training.losses import cross_entropy
-from ner_ehr.training.metrics import accuracy_per_class
+from ner_ehr.utils import load_np, save_np
 
 
 class LSTMNERTagger(nn.Module):
@@ -89,6 +93,7 @@ class LitLSTMNERTagger(pl.LightningModule):
         bidirectional: bool = False,
         lr: float = 0.001,
         dtype: Optional = None,
+        save_cm_after_every_n_epochs: int = 1,
         **kwargs,
     ):
         super().__init__()
@@ -114,17 +119,46 @@ class LitLSTMNERTagger(pl.LightningModule):
             lstm_dropout=lstm_dropout,
             bidirectional=bidirectional,
         )
+        self._init_cm()
+
+    def _init_cm(
+        self,
+    ) -> None:
+        """Initialize confusion matrix"""
+        self.cm: np.ndarray = np.zeros(
+            (self.hparams.num_classes, self.hparams.num_classes), dtype=np.int
+        )
 
     def forward(self, x: Tensor) -> Tensor:
         return self.lstm_ner_tagger(x)
+
+    def on_train_epoch_end(
+        self,
+    ):
+        """Hook after training epoch end."""
+        if (
+            self.current_epoch + 1
+        ) % self.hparams.save_cm_after_every_n_epochs == 0:
+            save_np(
+                arr=self.cm,
+                fp=os.path.join(
+                    self.logger.log_dir, f"cm_epoch={self.current_epoch}.npy"
+                ),
+            )
+        self._init_cm()
 
     def training_step(self, batch, batch_idx: int) -> float:
         X, Y, _ = batch
         Y_hat = self.forward(X)
 
-        loss = cross_entropy(Y_hat=Y_hat, Y=Y)
+        loss = cross_entropy(
+            Y_hat=Y_hat,
+            Y=Y,
+            ignore_index=Constants.PAD_TOKEN_ENTITY_INT_LABEL.value,
+        )
 
-        overall_acc, label_accs = accuracy_per_class(Y_hat=Y_hat, Y=Y)
+        acc, accs, cm = metrics.all_metrics(Y_hat=Y_hat, Y=Y)
+        self.cm += cm
 
         self.log(
             "train_loss",
@@ -135,12 +169,12 @@ class LitLSTMNERTagger(pl.LightningModule):
         )
         self.log(
             "train_acc",
-            overall_acc,
+            acc,
             on_step=True,
             on_epoch=True,
             batch_size=len(X),
         )
-        for label, acc in enumerate(label_accs):
+        for label, acc in enumerate(accs):
             self.log(
                 f"train_acc_label={label}",
                 acc,
@@ -155,9 +189,14 @@ class LitLSTMNERTagger(pl.LightningModule):
         X, Y, meta = batch
         Y_hat = self.forward(X)
 
-        loss = cross_entropy(Y_hat=Y_hat, Y=Y)
+        loss = cross_entropy(
+            Y_hat=Y_hat,
+            Y=Y,
+            ignore_index=Constants.PAD_TOKEN_ENTITY_INT_LABEL.value,
+        )
 
-        overall_acc, label_accs = accuracy_per_class(Y_hat=Y_hat, Y=Y)
+        acc, accs, cm = metrics.all_metrics(Y_hat=Y_hat, Y=Y)
+        self.cm += cm
 
         self.log(
             "val_loss",
@@ -168,12 +207,12 @@ class LitLSTMNERTagger(pl.LightningModule):
         )
         self.log(
             "val_acc",
-            overall_acc,
+            acc,
             on_step=True,
             on_epoch=True,
             batch_size=len(X),
         )
-        for label, acc in enumerate(label_accs):
+        for label, acc in enumerate(accs):
             self.log(
                 f"val_acc_label={label}",
                 acc,
@@ -181,6 +220,8 @@ class LitLSTMNERTagger(pl.LightningModule):
                 on_epoch=True,
                 batch_size=len(X),
             )
+
+        return loss
 
     def configure_optimizers(self):
         return torch.optim.Adam(
