@@ -1,18 +1,14 @@
-import glob
 import os
-from os import listdir
-from os.path import isfile, join
 from typing import List
 from tqdm import tqdm
 
-import pandas as pd
 import numpy as np
 from sklearn.metrics import classification_report
 
 from ner_ehr.data import Constants
 from ner_ehr.data.variables import AnnotationTuple
 from ner_ehr.data.vocab import TokenEntityVocab
-from utils import read_annotatedtuples
+from ner_ehr.utils import read_annotatedtuples
 
 
 class Baseline:
@@ -20,7 +16,7 @@ class Baseline:
     performance metrics on validation and test dataset"""
 
     def __init__(self, vocab: TokenEntityVocab):
-      
+
         self.vocab = vocab
 
     def fit(self, dataset: List[AnnotationTuple]) -> (List, List):
@@ -45,7 +41,11 @@ class Baseline:
             if len(pred_entity) == 0:
                 y_pred.append(Constants.UNTAG_ENTITY_LABEL.value)
             else:
-                y_pred.append(sorted(pred_entity.items(), key=lambda x: x[1], reverse=True)[0][0])
+                y_pred.append(
+                    sorted(
+                        pred_entity.items(), key=lambda x: x[1], reverse=True
+                    )[0][0]
+                )
 
             y_gold.append(row.entity)
 
@@ -59,11 +59,14 @@ class Baseline:
             pred_labels: list of predicted tags
             gold_labels: list of actual tags
         Returns:
-            score: report of all metrics like precision, recall, f1-score, micro_average and macro_average
+            score: report of all metrics like precision,
+            recall, f1-score, micro_average and macro_average
             for all entity classes
         """
 
-        score = classification_report(gold_labels, pred_labels, labels=np.unique(gold_labels))
+        score = classification_report(
+            gold_labels, pred_labels, labels=np.unique(gold_labels)
+        )
         return score
 
 

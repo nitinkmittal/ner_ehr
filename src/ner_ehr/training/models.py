@@ -119,13 +119,22 @@ class LitLSTMNERTagger(pl.LightningModule):
             lstm_dropout=lstm_dropout,
             bidirectional=bidirectional,
         )
-        self._init_cm()
+        self._init_cm_train()
+        self._init_cm_val()
 
-    def _init_cm(
+    def _init_cm_train(
         self,
     ) -> None:
-        """Initialize confusion matrix"""
-        self.cm: np.ndarray = np.zeros(
+        """Initialize confusion matrix for training labels."""
+        self.cm_train: np.ndarray = np.zeros(
+            (self.hparams.num_classes, self.hparams.num_classes), dtype=np.int
+        )
+
+    def _init_cm_val(
+        self,
+    ) -> None:
+        """Initialize confusion matrix for validation labels."""
+        self.cm_val: np.ndarray = np.zeros(
             (self.hparams.num_classes, self.hparams.num_classes), dtype=np.int
         )
 
@@ -137,15 +146,36 @@ class LitLSTMNERTagger(pl.LightningModule):
     ):
         """Hook after training epoch end."""
         if (
-            self.current_epoch + 1
-        ) % self.hparams.save_cm_after_every_n_epochs == 0:
+            self.current_epoch == 0
+            or (self.current_epoch + 1)
+            % self.hparams.save_cm_after_every_n_epochs
+            == 0
+        ):
             save_np(
-                arr=self.cm,
+                arr=self.cm_train,
                 fp=os.path.join(
-                    self.logger.log_dir, f"cm_epoch={self.current_epoch}.npy"
+                    self.logger.log_dir,
+                    f"train_cm_epoch={self.current_epoch}.npy",
                 ),
             )
-        self._init_cm()
+        self._init_cm_train()
+
+    def validation_epoch_end(self, val_step_end_outputs: Tensor):
+        """Hook after validation epoch end."""
+        if (
+            self.current_epoch == 0
+            or (self.current_epoch + 1)
+            % self.hparams.save_cm_after_every_n_epochs
+            == 0
+        ):
+            save_np(
+                arr=self.cm_val,
+                fp=os.path.join(
+                    self.logger.log_dir,
+                    f"val_cm_epoch={self.current_epoch}.npy",
+                ),
+            )
+        self._init_cm_val()
 
     def training_step(self, batch, batch_idx: int) -> float:
         X, Y, _ = batch
@@ -158,7 +188,7 @@ class LitLSTMNERTagger(pl.LightningModule):
         )
 
         acc, accs, cm = metrics.all_metrics(Y_hat=Y_hat, Y=Y)
-        self.cm += cm
+        self.cm_train += cm
 
         self.log(
             "train_loss",
@@ -196,7 +226,7 @@ class LitLSTMNERTagger(pl.LightningModule):
         )
 
         acc, accs, cm = metrics.all_metrics(Y_hat=Y_hat, Y=Y)
-        self.cm += cm
+        self.cm_val += cm
 
         self.log(
             "val_loss",
