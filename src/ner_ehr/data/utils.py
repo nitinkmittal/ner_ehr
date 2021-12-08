@@ -1,6 +1,6 @@
 """This module contain helper utilities to prepare data for NER."""
 from pathlib import Path
-from typing import Any, Callable, List, Union
+from typing import List, Union
 
 import pandas as pd
 
