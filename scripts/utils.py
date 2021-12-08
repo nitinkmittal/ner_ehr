@@ -7,6 +7,8 @@ from ner_ehr.data.ehr import EHR
 from ner_ehr.data.utils import df_to_namedtuples
 from ner_ehr.data.variables import AnnotationTuple
 
+from ner_ehr.data.vocab import TokenEntityVocab
+
 
 def read_annotatedtuples(dir: Union[str, Path]) -> List[AnnotationTuple]:
     """Read annotated tuples from CSVs present inside given directory.
