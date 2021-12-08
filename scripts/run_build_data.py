@@ -8,24 +8,20 @@ from typing import List, Union
 import numpy as np
 from ner_ehr.data.ehr import EHR
 from ner_ehr.data.variables import AnnotationTuple, TokenTuple
-from ner_ehr.tokenizers import (
-    NLTKTokenizer,
-    ScispacyTokenizer,
-    SplitTokenizer,
-    Tokenizer,
-)
+from ner_ehr.tokenizers import (NLTKTokenizer, ScispacyTokenizer,
+                                SplitTokenizer, Tokenizer)
+from ner_ehr.utils import save_kwargs
 from tqdm import tqdm
 
 from custom_parsers import CustomAnnotationParser, CustomTokenParser
 
-AVAILABLE_TASKS: List[str] = ["TOKENIZE"]
-DEFAULT_PROCESSED_TRAIN_DATA_DIR: Union[Path, str] = os.path.join(
+DEFAULT_PROCESSED_DATA_DIR_TRAIN: Union[Path, str] = os.path.join(
     os.getcwd(), "processed", "train"
 )
-DEFAULT_PROCESSED_VAL_DATA_DIR: Union[Path, str] = os.path.join(
+DEFAULT_PROCESSED_DATA_DIR_VAL: Union[Path, str] = os.path.join(
     os.getcwd(), "processed", "val"
 )
-DEFAULT_PROCESSED_TEST_DATA_DIR: Union[Path, str] = os.path.join(
+DEFAULT_PROCESSED_DATA_DIR_TEST: Union[Path, str] = os.path.join(
     os.getcwd(), "processed", "test"
 )
 
@@ -34,8 +30,11 @@ DEFAULT_TOKENIZER: str = "NLTK"
 DEFAULT_SEP_FOR_SPLIT_TOKENIZER: str = " "
 DEFAULT_VALIDATE_TOKEN_IDXS: str = "Y"
 DEFAULT_VAL_SPLIT: float = 0.1
-DEFAULT_MAX_SEQ_LENGTH: int = 512
 DEFAULT_RANDOM_SEED: int = 42
+DEFAULT_SAVE_PARSER_ARGS: str = "Y"
+DEFAULT_PARSER_ARGS_SAVE_FP: Union[Path, str] = os.path.join(
+    os.getcwd(), f"{os.path.basename(__file__).split('.')[0]}_parser_args.yaml"
+)
 
 
 def parse_arguments():
@@ -65,43 +64,33 @@ def parse_arguments():
     )
 
     parser.add_argument(
-        "--processed_train_data_dir",
+        "--processed_data_dir_train",
         type=str,
         help=(
             "directory to store processed training tokens, "
-            f"default: {DEFAULT_PROCESSED_TRAIN_DATA_DIR}"
+            f"default: {DEFAULT_PROCESSED_DATA_DIR_TRAIN}"
         ),
-        default=DEFAULT_PROCESSED_TRAIN_DATA_DIR,
+        default=DEFAULT_PROCESSED_DATA_DIR_TRAIN,
     )
 
     parser.add_argument(
-        "--processed_val_data_dir",
+        "--processed_data_dir_val",
         type=str,
         help=(
             "directory to store processed val tokens, "
-            f"default: {DEFAULT_PROCESSED_VAL_DATA_DIR} "
+            f"default: {DEFAULT_PROCESSED_DATA_DIR_VAL} "
         ),
-        default=DEFAULT_PROCESSED_VAL_DATA_DIR,
+        default=DEFAULT_PROCESSED_DATA_DIR_VAL,
     )
 
     parser.add_argument(
-        "--processed_test_data_dir",
+        "--processed_data_dir_test",
         type=str,
         help=(
             "directory to store processed test tokens, "
-            f"default: {DEFAULT_PROCESSED_TEST_DATA_DIR} "
+            f"default: {DEFAULT_PROCESSED_DATA_DIR_TEST} "
         ),
-        default=DEFAULT_PROCESSED_TEST_DATA_DIR,
-    )
-
-    parser.add_argument(
-        "--task",
-        type=str,
-        help=(
-            "task to be completed, "
-            f"available tasks: [{', '.join(AVAILABLE_TASKS)}]"
-        ),
-        default="TOKENIZE",
+        default=DEFAULT_PROCESSED_DATA_DIR_TEST,
     )
 
     parser.add_argument(
@@ -118,7 +107,7 @@ def parse_arguments():
         "--sep",
         type=str,
         help=(
-            "separator used by split tokenizer, "
+            "separator used only by split tokenizer, "
             f"default: {DEFAULT_SEP_FOR_SPLIT_TOKENIZER}"
         ),
         default=DEFAULT_SEP_FOR_SPLIT_TOKENIZER,
@@ -128,24 +117,39 @@ def parse_arguments():
         "--validate_token_idxs",
         type=str,
         help=(
-            "should validate token character indexes (sanity check) or not (Y/N), "
-            f"default: {DEFAULT_VALIDATE_TOKEN_IDXS}"
+            "should validate token character indexes (sanity check) or not "
+            f"(Y/N), default: {DEFAULT_VALIDATE_TOKEN_IDXS}"
         ),
         default=DEFAULT_VALIDATE_TOKEN_IDXS,
     )
 
     parser.add_argument(
-        "--max_seq_len",
+        "--random_seed",
         type=int,
-        help=f"Maximum sequence length, default: {DEFAULT_MAX_SEQ_LENGTH}",
-        default=DEFAULT_MAX_SEQ_LENGTH,
+        help=(
+            f"random seed for reproducibility, default: {DEFAULT_RANDOM_SEED}"
+        ),
+        default=DEFAULT_RANDOM_SEED,
     )
 
     parser.add_argument(
-        "--random_seed",
-        type=int,
-        help=f"random seed for reproducibility, default: {DEFAULT_RANDOM_SEED}",
-        default=DEFAULT_MAX_SEQ_LENGTH,
+        "--save_parser_args",
+        type=str,
+        help=(
+            "should save parser arguments or not (Y/N), "
+            f"default: {DEFAULT_SAVE_PARSER_ARGS}"
+        ),
+        default=DEFAULT_SAVE_PARSER_ARGS,
+    )
+
+    parser.add_argument(
+        "--parser_args_save_fp",
+        type=str,
+        help=(
+            "filepath to save parser arguments, "
+            f"default: {DEFAULT_PARSER_ARGS_SAVE_FP}"
+        ),
+        default=DEFAULT_PARSER_ARGS_SAVE_FP,
     )
 
     arguments = parser.parse_args()
@@ -154,6 +158,9 @@ def parse_arguments():
 
 def main():
     args = parse_arguments()
+
+    if args.save_parser_args == "Y":
+        save_kwargs(fp=args.parser_args_save_fp, **args.__dict__)
 
     validate_token_idxs = True if args.validate_token_idxs == "Y" else False
     if args.tokenizer == "NLTK":
@@ -171,9 +178,9 @@ def main():
         )
         tokenizer = NLTKTokenizer(validate_token_idxs=validate_token_idxs)
 
-    os.makedirs(args.processed_train_data_dir, exist_ok=True)
-    os.makedirs(args.processed_val_data_dir, exist_ok=True)
-    os.makedirs(args.processed_test_data_dir, exist_ok=True)
+    os.makedirs(args.processed_data_dir_train, exist_ok=True)
+    os.makedirs(args.processed_data_dir_val, exist_ok=True)
+    os.makedirs(args.processed_data_dir_test, exist_ok=True)
 
     record_fps = glob.glob(os.path.join(args.input_train_data_dir, "*.txt"))
     rng = np.random.default_rng(args.random_seed)
@@ -185,14 +192,14 @@ def main():
     build_processed_data(
         tokenizer=tokenizer,
         record_fps=train_record_fps,
-        save_dir=args.processed_train_data_dir,
+        save_dir=args.processed_data_dir_train,
     )
     # generating annotated tokens from val records
     val_record_fps = record_fps[num_train_record_fps:]
     build_processed_data(
         tokenizer=tokenizer,
         record_fps=val_record_fps,
-        save_dir=args.processed_val_data_dir,
+        save_dir=args.processed_data_dir_val,
     )
     # generating annotated tokens from test records
     test_record_fps = glob.glob(
@@ -201,7 +208,7 @@ def main():
     build_processed_data(
         tokenizer=tokenizer,
         record_fps=test_record_fps,
-        save_dir=args.processed_test_data_dir,
+        save_dir=args.processed_data_dir_test,
     )
 
 

@@ -6,7 +6,6 @@ import pandas as pd
 
 from ner_ehr.data.variables import AnnotationTuple, TokenTuple
 
-
 # def sort_namedtuples(
 #     func: Callable[[Any], Union[List[AnnotationTuple], List[TokenTuple]]],
 #     by: Union[str, List[str]] = ["doc_id", "start_idx"],

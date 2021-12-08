@@ -13,23 +13,16 @@ from torch.utils.data import DataLoader, Dataset
 
 from ner_ehr.data import Constants
 from ner_ehr.data.ehr import EHR
-from ner_ehr.data.utils import (
-    df_to_namedtuples,
-    generate_token_seqs,
-)
-from ner_ehr.data.variables import (
-    AnnotationTuple,
-    LongAnnotationTuple,
-    TokenTuple,
-)
-
+from ner_ehr.data.utils import df_to_namedtuples, generate_token_seqs
+from ner_ehr.data.variables import (AnnotationTuple, LongAnnotationTuple,
+                                    TokenTuple)
 from ner_ehr.data.vocab import TokenEntityVocab
 
-DEFAULT_ANNOTATED: bool = False
 DEFAULT_SEQ_LENGTH: int = 256
+DEFAULT_ANNOTATED: bool = False
 DEFAULT_BATCH_SIZE: int = 1
 DEFAULT_SHUFFLE_TRAIN: bool = True
-DEFAULT_SHUFFLE_VAL: bool = True
+DEFAULT_SHUFFLE_VAL: bool = False
 DEFAULT_SHUFFLE_TEST: bool = False
 DEFAULT_NUM_WORKERS: int = 1
 
@@ -46,14 +39,14 @@ class EHRDataset(Dataset):
         Args:
             dir: directory containing CSVs with annotated tokens
 
-            vocab: ner_data.utils.TokenEntityVocab object trained on annotationtuples
+            vocab: pre-trained ner_data.utils.TokenEntityVocab object
+
+            seq_length: maximum number of tokens in a sequence
+                default: 256
 
             annotated: boolean flag
                 if True, tokens with annotations are read,
                 otherwise without annotations are read
-
-            seq_length: maximum number of tokens in a sequence
-                default: 256
         """
         self.dir = dir
         self.vocab = vocab
@@ -89,7 +82,7 @@ class EHRDataset(Dataset):
                 )
 
             # converting annotatedtuples to long_annotatedtuples
-            #   i.e adding token indexes and entity labels from pre-trained vocab
+            # i.e adding token indexes and entity labels from pre-trained vocab
             annotatedtuples = [
                 self.vocab.annotation_to_longannotation(
                     annotatedtuple=annotatedtuple
@@ -158,7 +151,7 @@ class EHRBatchCollator(ABC):
                 for long_annotatedtuples in batch
             ],
             batch_first=True,
-            padding_value=Constants.UNTAG_ENTITY_INT_LABEL.value,
+            padding_value=Constants.PAD_TOKEN_ENTITY_INT_LABEL.value,
         )
 
         if self.return_meta:

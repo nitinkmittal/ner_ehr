@@ -1,8 +1,9 @@
 """Contain general utility functions"""
-from typing import Callable, List, Union
-import numpy as np
-
 from pathlib import Path
+from typing import Callable, List, Union
+
+import numpy as np
+import yaml
 
 
 def validate_list(l: List[Union[int, str]], dtype: type):
@@ -35,3 +36,8 @@ def load_np(fp: Union[str, Path]) -> np.ndarray:
     with open(fp, "rb") as f:
         arr = np.load(f)
     return arr
+
+
+def save_kwargs(fp: Union[str, Path], **kwargs) -> None:
+    with open(fp, "w") as f:
+        yaml.dump(kwargs, f)
