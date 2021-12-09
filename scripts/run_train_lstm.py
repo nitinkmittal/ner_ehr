@@ -11,14 +11,12 @@ import torch
 from ner_ehr.data.embeddings import GloveEmbeddings, PubMedicalEmbeddings
 from ner_ehr.data.vocab import TokenEntityVocab
 from ner_ehr.training.datasets import EHRBatchCollator, EHRDataModule
-from ner_ehr.training.models import LitLSTMNERTagger
-from ner_ehr.utils import save_np
+from ner_ehr.training.pl_models import LitLSTMCRFNERTagger, LitLSTMNERTagger
+from ner_ehr.utils import read_annotatedtuples, save_np
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import CSVLogger
 from tqdm import tqdm
-
-from ner_ehr.utils import read_annotatedtuples
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +35,6 @@ DEFAULT_LOAD_PRE_TRAINED_EMBED_PATH: Union[Path, str] = os.path.join(
 DEFAULT_SAVE_PRE_TRAINED_EMBED_WEIGHTS_PATH: Union[Path, str] = os.path.join(
     os.getcwd(), "embedding_weights.npy"
 )
-
 DEFAULT_BATCH_SIZE_TRAIN: int = 32
 DEFAULT_BATCH_SIZE_VAL: int = 32
 NUM_WORKER_CPUs = os.cpu_count() // 2
@@ -45,13 +42,15 @@ DEFAULT_NUM_WORKERS_TRAIN: int = max(1, int(NUM_WORKER_CPUs // 1.5))
 DEFAULT_NUM_WORKERS_VAL: int = max(
     1, NUM_WORKER_CPUs - DEFAULT_NUM_WORKERS_TRAIN
 )
-
 DEAULT_HIDDEN_SIZE: int = 64
 DEFAULT_USE_BIDIRECTIONAL_LSTM: str = "N"
 DEFAULT_NUM_LSTM_LAYERS: int = 1
 DEFAULT_LSTM_DROPOUT: float = 0.1
-
+DEFAULT_USE_CRF: str = "N"
+DEFAULT_USE_MASKS: str = "N"
 DEFAULT_LR: float = 0.001
+DEFAULT_CE_WEIGHT: float = 1.0
+DEFAULT_CRF_NLLH_WEIGHT: float = 0.001
 DEFAULT_NUM_EPOCHS: int = 1
 DEFAULT_SAVE_CM_AFTER_EVERY_N_EPOCHS: int = 1
 DEFAULT_DEVICE_TYPE = torch.device(
@@ -60,11 +59,9 @@ DEFAULT_DEVICE_TYPE = torch.device(
 DEFAULT_NUM_GPUS: Optional[int] = (
     1 if DEFAULT_DEVICE_TYPE.type != "cpu" else None
 )
-
 DEFAULT_LOG_DIR: Union[Path, str] = os.path.join(os.getcwd(), "logs")
-DEFAULT_EXPERIMENT_NAME = "ner_ehr_lstm"
+DEFAULT_EXPERIMENT_NAME: str = "ner_ehr_lstm"
 DEFAULT_MODEL_CHECKPOINT_FP: int = "{epoch}-{step}-{val_loss:.3f}"
-
 DEFAULT_MONITOR: str = "val_loss"
 DEFAULT_MODE: str = "min"
 DEFAULT_SAVE_TOP_K: int = 1
@@ -231,6 +228,45 @@ def parse_arguments():
     )
 
     parser.add_argument(
+        "--use_crf",
+        type=str,
+        help=(
+            "should use Conditional Random Field or not (Y/N), "
+            f"default: {DEFAULT_USE_CRF}"
+        ),
+        default=DEFAULT_USE_CRF,
+    )
+
+    parser.add_argument(
+        "--use_masks",
+        type=str,
+        help=(
+            "should use masks when using Conditional Random Field "
+            f" or not (Y/N), default: {DEFAULT_USE_MASKS}"
+        ),
+        default=DEFAULT_USE_MASKS,
+    )
+
+    parser.add_argument(
+        "--ce_loss_weight",
+        type=float,
+        help=(
+            "weight to cross entropy loss, " f" default: {DEFAULT_CE_WEIGHT}"
+        ),
+        default=DEFAULT_CE_WEIGHT,
+    )
+
+    parser.add_argument(
+        "--crf_nllh_weight",
+        type=float,
+        help=(
+            "weight to crf neg-log-likelihood loss, "
+            f" default: {DEFAULT_CRF_NLLH_WEIGHT}"
+        ),
+        default=DEFAULT_CRF_NLLH_WEIGHT,
+    )
+
+    parser.add_argument(
         "--lr",
         type=float,
         help=f"learning rate, default: {DEFAULT_LR}",
@@ -318,11 +354,14 @@ def main():
         bidirectional=True if args.use_bilstm == "Y" else False,
         num_lstm_layers=args.num_lstm_layers,
         lstm_dropout=args.lstm_dropout,
+        use_crf=True if args.use_crf == "Y" else False,
+        use_masks=True if args.use_masks == "Y" else False,
+        ce_weight=args.ce_loss_weight,
+        crf_nllh_weight=args.crf_nllh_weight,
         lr=args.lr,
         epochs=args.num_epochs,
         save_cm_after_every_n_epochs=args.save_cm_after_every_n_epochs,
         log_dir=args.log_dir,
-        experiment_name=DEFAULT_EXPERIMENT_NAME,
         random_seed=args.random_seed,
         parser_args=args.__dict__,
     )
@@ -390,11 +429,14 @@ def run_model(
     bidirectional: bool,
     num_lstm_layers: int,
     lstm_dropout: float,
-    lr,
+    use_crf: bool,
+    use_masks: bool,
+    ce_weight: float,
+    crf_nllh_weight: float,
+    lr: float,
     epochs: int,
     save_cm_after_every_n_epochs: int,
     log_dir: int,
-    experiment_name: str,
     random_seed: int,
     parser_args: Dict[str, Any],
 ):
@@ -439,22 +481,45 @@ def run_model(
     )
 
     logger.info("Initializing PyTorch Lightning Model ...")
-    lit_lstm = LitLSTMNERTagger(
-        embedding_dim=embed_dim,
-        vocab_size=vocab.num_uniq_tokens,
-        hidden_size=hidden_size,
-        num_classes=vocab.num_uniq_entities,
-        embedding_weights_fp=save_pre_trained_embed_weights_fp,
-        num_lstm_layers=num_lstm_layers,
-        bidirectional=bidirectional,
-        lstm_dropout=lstm_dropout,
-        save_cm_after_every_n_epochs=save_cm_after_every_n_epochs,
-        lr=lr,
-        parser_args=parser_args,
-    )
+    if not use_crf:
+        model = LitLSTMNERTagger(
+            embedding_dim=embed_dim,
+            vocab_size=vocab.num_uniq_tokens,
+            hidden_size=hidden_size,
+            num_classes=vocab.num_uniq_entities,
+            embedding_weights_fp=save_pre_trained_embed_weights_fp,
+            num_lstm_layers=num_lstm_layers,
+            bidirectional=bidirectional,
+            lstm_dropout=lstm_dropout,
+            lr=lr,
+            save_cm_after_every_n_epochs=save_cm_after_every_n_epochs,
+            parser_args=parser_args,
+        )
+    else:
+        model = LitLSTMCRFNERTagger(
+            embedding_dim=embed_dim,
+            vocab_size=vocab.num_uniq_tokens,
+            hidden_size=hidden_size,
+            num_classes=vocab.num_uniq_entities,
+            embedding_weights_fp=save_pre_trained_embed_weights_fp,
+            num_lstm_layers=num_lstm_layers,
+            bidirectional=bidirectional,
+            lstm_dropout=lstm_dropout,
+            use_masks=use_masks,
+            ce_weight=ce_weight,
+            crf_nllh_weight=crf_nllh_weight,
+            lr=lr,
+            save_cm_after_every_n_epochs=save_cm_after_every_n_epochs,
+            parser_args=parser_args,
+        )
 
     # logger for current experiment
-    csv_logger = CSVLogger(save_dir=log_dir, name=experiment_name)
+    csv_logger = CSVLogger(
+        save_dir=log_dir,
+        name=DEFAULT_EXPERIMENT_NAME
+        if use_crf is False
+        else "ner_ehr_lstm_crf",
+    )
     # save checkpoint callback during training
     save_checkpoint_callback = ModelCheckpoint(
         filename=DEFAULT_MODEL_CHECKPOINT_FP,
@@ -473,7 +538,7 @@ def run_model(
         num_sanity_val_steps=DEFAULT_NUM_SANITY_VAL_STEPS,
     )
 
-    trainer.fit(model=lit_lstm, datamodule=datamodule)
+    trainer.fit(model=model, datamodule=datamodule)
 
 
 if __name__ == "__main__":
