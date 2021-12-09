@@ -1,14 +1,13 @@
 import os
 from typing import List
-from tqdm import tqdm
 
 import numpy as np
-from sklearn.metrics import classification_report
-
 from ner_ehr.data import Constants
 from ner_ehr.data.variables import AnnotationTuple
 from ner_ehr.data.vocab import TokenEntityVocab
 from ner_ehr.utils import read_annotatedtuples
+from sklearn.metrics import classification_report
+from tqdm import tqdm
 
 
 class Baseline:
