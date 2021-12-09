@@ -144,7 +144,7 @@ class LitLSTMNERTagger(pl.LightningModule):
         self.cm_argmax_train += argmax_cm
 
         self.log(
-            "train_ce_loss",
+            "train_loss",
             ce_loss.item(),
             on_step=True,
             on_epoch=True,
@@ -157,7 +157,7 @@ class LitLSTMNERTagger(pl.LightningModule):
             on_epoch=True,
             batch_size=len(X),
         )
-        for label, acc in enumerate(argmax_accs):
+        for label, argmax_acc in enumerate(argmax_accs):
             self.log(
                 f"train_argmax_acc_label={label}",
                 argmax_acc,
@@ -199,7 +199,7 @@ class LitLSTMNERTagger(pl.LightningModule):
             on_epoch=True,
             batch_size=len(X),
         )
-        for label, acc in enumerate(argmax_accs):
+        for label, argmax_acc in enumerate(argmax_accs):
             self.log(
                 f"val_argmax_acc_label={label}",
                 argmax_acc,
