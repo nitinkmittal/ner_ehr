@@ -1,12 +1,11 @@
 """Contain general utility functions"""
+import os
+from glob import glob
 from pathlib import Path
 from typing import Callable, List, Union
 
 import numpy as np
 import yaml
-
-import os
-from glob import glob
 
 from ner_ehr.data.ehr import EHR
 from ner_ehr.data.utils import df_to_namedtuples

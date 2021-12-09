@@ -5,8 +5,11 @@ from typing import Counter as typeCounter
 from typing import DefaultDict, Dict, List, Set, Union
 
 from ner_ehr.data import Constants
-from ner_ehr.data.variables import (AnnotationTuple, LongAnnotation,
-                                    LongAnnotationTuple)
+from ner_ehr.data.variables import (
+    AnnotationTuple,
+    LongAnnotation,
+    LongAnnotationTuple,
+)
 from ner_ehr.utils import validate_list
 
 TO_LOWER: bool = False
@@ -38,25 +41,29 @@ class TokenEntityVocab(ABC):
 
         # stores all unique tokens
         self.uniq_tokens: Set[str] = None
+        # stores number of unique tokens
         self.num_uniq_tokens: int = None
+
         # stores token to idx mapping
         self._token_to_idx: Dict[str, int] = None
-
         # stores idx to token mapping
         self._idx_to_token: Dict[int, str] = None
 
         # stores unique entities
-        self.uniq_entities: Set[str] = None
-        # stores entity count for all tokens
-        self.token_entity_freq: DefaultDict[str, typeCounter[str]] = None
+        self.num_uniq_entities: int = None
 
         # stores entity to label mapping
         self._entity_to_label: Dict[str, int] = None
         # stores label to entity mapping
         self._label_to_entity: Dict[int, str] = None
 
+        # stores entity count for all tokens
+        self.token_entity_freq: DefaultDict[str, typeCounter[str]] = None
+        # stores token frequency
+        self.token_freq: DefaultDict[str, typeCounter[str]] = None
         # stores token to document mapping
         self.__token_doc_freq: DefaultDict[str, Set[str]] = None
+        # stores token document frequency
         self.token_doc_freq: DefaultDict[str, int] = None
 
         self._setup()
@@ -67,13 +74,12 @@ class TokenEntityVocab(ABC):
         self.ignore_tokens = set(
             [self._to_lower(token=token) for token in self.ignore_tokens]
         )
-        # stores all unique tokens
+
         self.uniq_tokens: Set[str] = set(
             [TokenEntityVocab.PAD_TOKEN, TokenEntityVocab.UNK_TOKEN]
         )
         self.num_uniq_tokens: int = len(self.uniq_tokens)
 
-        # stores token to idx mapping
         self._token_to_idx: Dict[str, int] = defaultdict(
             lambda: TokenEntityVocab.UNK_TOKEN_IDX
         )
@@ -83,8 +89,6 @@ class TokenEntityVocab(ABC):
                 TokenEntityVocab.UNK_TOKEN: TokenEntityVocab.UNK_TOKEN_IDX,
             }
         )
-
-        # stores idx to token mapping
         self._idx_to_token: Dict[int, str] = defaultdict(
             lambda: TokenEntityVocab.UNK_TOKEN
         )
@@ -94,19 +98,6 @@ class TokenEntityVocab(ABC):
                 TokenEntityVocab.UNK_TOKEN_IDX: TokenEntityVocab.UNK_TOKEN,
             }
         )
-
-        # stores unique entities
-        self.uniq_entities: Set[str] = set(
-            [
-                TokenEntityVocab.PAD_TOKEN_ENTITY_LABEL,
-                TokenEntityVocab.UNTAG_ENTITY_LABEL,
-            ]
-        )
-        self.num_uniq_entities: int = len(self.uniq_entities)
-
-        self.token_entity_freq: DefaultDict[
-            str, typeCounter[str]
-        ] = defaultdict(Counter)
 
         self._entity_to_label: Dict[str, int] = defaultdict(
             lambda: TokenEntityVocab.UNTAG_ENTITY_INT_LABEL
@@ -128,6 +119,10 @@ class TokenEntityVocab(ABC):
             }
         )
 
+        self.token_entity_freq: DefaultDict[
+            str, typeCounter[str]
+        ] = defaultdict(Counter)
+        self.token_freq: DefaultDict[str, Set[str]] = defaultdict()
         self.__token_doc_freq: DefaultDict[str, Set[str]] = defaultdict(set)
         self.token_doc_freq: DefaultDict[str, int] = defaultdict(int)
 
@@ -145,6 +140,29 @@ class TokenEntityVocab(ABC):
     def token_doc_freq(self, arg) -> Dict[str, int]:
         pass
 
+    @property
+    def token_freq(self) -> Dict[str, int]:
+        """Getter for `token_freq`.
+        Generate token frequency from `token_entity_freq`.
+        """
+        return {
+            token: sum(list(entity_freq.values()))
+            for token, entity_freq in self.token_entity_freq.items()
+        }
+
+    @token_freq.setter
+    def token_freq(self, arg) -> Dict[str, int]:
+        pass
+
+    @property
+    def num_uniq_entities(self) -> int:
+        """Getter for `num_uniq_entities`."""
+        return len(self._entity_to_label)
+
+    @num_uniq_entities.setter
+    def num_uniq_entities(self, arg) -> Dict[str, int]:
+        pass
+
     def _to_lower(self, token: str) -> str:
         """Lowercase token if specified"""
         if self.to_lower:
@@ -154,23 +172,33 @@ class TokenEntityVocab(ABC):
     def _add_token(self, token: str) -> None:
         """Helper function to add token and assign it's index."""
         self.uniq_tokens.add(token)
-        if len(self.uniq_tokens) > self.num_uniq_tokens:  # new token added
+        if len(self.uniq_tokens) > self.num_uniq_tokens:
+            # new token added
             idx = self.num_uniq_tokens
-            # assigning unique idx to each token
             self._token_to_idx.update({token: idx})
             self._idx_to_token.update({idx: token})
             self.num_uniq_tokens += 1
 
-    def _add_entity(self, entity: str) -> None:
+    def _add_entities(self, entities: Set[str]) -> None:
         """Helper function to add entity and assign it's label"""
-        self.uniq_entities.add(entity)
 
-        if len(self.uniq_entities) > self.num_uniq_entities:
-            # new entity added
+        # to assign consecutive index to `B-` and `I-` tags belonging to same entities
+        entities = sorted(
+            [
+                entity
+                for entity in entities
+                if entity
+                not in [
+                    TokenEntityVocab.PAD_TOKEN_ENTITY_LABEL,
+                    TokenEntityVocab.UNTAG_ENTITY_LABEL,
+                ]
+            ],
+            key=lambda x: f"{x.split('-')[1]}-{x.split('-')[0]}",
+        )
+        for entity in entities:
             label = self.num_uniq_entities
             self._entity_to_label.update({entity: label})
             self._label_to_entity.update({label: entity})
-            self.num_uniq_entities += 1
 
     def fit(self, annotatedtuples: List[AnnotationTuple]) -> None:
         """Generate vocab, token to idx mapping,
@@ -195,19 +223,22 @@ class TokenEntityVocab(ABC):
                 ]
         """
         self._setup()
-        for tokentuple in annotatedtuples:
-            tokentuple = tokentuple._replace(
-                token=self._to_lower(token=tokentuple.token)
+        entities: Set[str] = set()
+        for annotatedtuple in annotatedtuples:
+            annotatedtuple = annotatedtuple._replace(
+                token=self._to_lower(token=annotatedtuple.token)
             )
-            # ignore current token if present given list of ignore tokens
-            if tokentuple.token in self.ignore_tokens:
-                continue
-            self._add_token(token=tokentuple.token)
-            self._add_entity(entity=tokentuple.entity)
-            self.token_entity_freq[tokentuple.token].update(
-                {tokentuple.entity: 1}
-            )
-            self.__token_doc_freq[tokentuple.token].add(tokentuple.doc_id)
+            # checking if current token not in given list of ignore tokens
+            if annotatedtuple.token not in self.ignore_tokens:
+                self._add_token(token=annotatedtuple.token)
+                self.token_entity_freq[annotatedtuple.token].update(
+                    {annotatedtuple.entity: 1}
+                )
+                self.__token_doc_freq[annotatedtuple.token].add(
+                    annotatedtuple.doc_id
+                )
+            entities.add(annotatedtuple.entity)
+        self._add_entities(entities=entities)
 
     def token_to_idx(self, tokens: Union[str, List[str]]) -> List[int]:
         """Convert list of string tokens into list of integer (index) tokens.
@@ -313,6 +344,6 @@ class TokenEntityVocab(ABC):
             start_idx=annotatedtuple.start_idx,
             end_idx=annotatedtuple.end_idx,
             entity=annotatedtuple.entity,
-            token_idx=self._token_to_idx[annotatedtuple.token],
-            entity_label=self._entity_to_label[annotatedtuple.entity],
+            token_idx=self.token_to_idx(annotatedtuple.token)[0],
+            entity_label=self.entity_to_label(annotatedtuple.entity)[0],
         )()
