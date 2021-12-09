@@ -1,5 +1,3 @@
-from typing import Optional
-
 import torch
 import torch.nn as nn
 
@@ -156,7 +154,8 @@ class CRF(nn.Module):
             # shape: (batch_size, num_classes)
             next_score = torch.logsumexp(next_score, dim=1)
 
-            # Set score to the next score if this timestep is valid (masks == 1)
+            # Set score to the next score if this timestep is valid
+            #   (masks == 1)
             # shape: (batch_size, num_classes)
             score = torch.where(masks[i].unsqueeze(1), next_score, score)
 

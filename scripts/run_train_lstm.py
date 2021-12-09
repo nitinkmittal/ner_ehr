@@ -43,15 +43,15 @@ DEFAULT_NUM_WORKERS_VAL: int = max(
     1, NUM_WORKER_CPUs - DEFAULT_NUM_WORKERS_TRAIN
 )
 DEAULT_HIDDEN_SIZE: int = 64
-DEFAULT_USE_BIDIRECTIONAL_LSTM: str = "N"
+DEFAULT_BiLSTM: str = "N"
 DEFAULT_NUM_LSTM_LAYERS: int = 1
 DEFAULT_LSTM_DROPOUT: float = 0.1
-DEFAULT_USE_CRF: str = "N"
-DEFAULT_USE_MASKS: str = "N"
+DEFAULT_CRF: str = "N"
+DEFAULT_MASKS: str = "N"
 DEFAULT_LR: float = 0.001
 DEFAULT_CE_WEIGHT: float = 1.0
 DEFAULT_CRF_NLLH_WEIGHT: float = 0.001
-DEFAULT_NUM_EPOCHS: int = 1
+DEFAULT_EPOCHS: int = 1
 DEFAULT_SAVE_CM_AFTER_EVERY_N_EPOCHS: int = 1
 DEFAULT_DEVICE_TYPE = torch.device(
     "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -62,6 +62,17 @@ DEFAULT_NUM_GPUS: Optional[int] = (
 DEFAULT_LOG_DIR: Union[Path, str] = os.path.join(os.getcwd(), "logs")
 DEFAULT_EXPERIMENT_NAME: str = "ner_ehr_lstm"
 DEFAULT_MODEL_CHECKPOINT_FP: int = "{epoch}-{step}-{val_loss:.3f}"
+DEFAULT_AVAILABLE_MONITOR_AND_MODE_WITH_CRF = {
+    "val_loss": "min",
+    "val_ce_loss": "min",
+    "val_crf_nllh": "min",
+    "val_argmax_acc": "max",
+    "val_viterbi_acc": "max",
+}
+DEFAULT_AVAILABLE_MONITOR_AND_MODE_WITHOUT_CRF = {
+    "val_loss": "min",
+    "val_argmax_acc": "max",
+}
 DEFAULT_MONITOR: str = "val_loss"
 DEFAULT_MODE: str = "min"
 DEFAULT_SAVE_TOP_K: int = 1
@@ -98,9 +109,9 @@ def parse_arguments():
     )
 
     parser.add_argument(
-        "--max_seq_len",
+        "--seq_len",
         type=int,
-        help=f"maximum sequence length, default: {DEFAULT_MAX_SEQ_LENGTH}",
+        help=f"sequence length, default: {DEFAULT_MAX_SEQ_LENGTH}",
         default=DEFAULT_MAX_SEQ_LENGTH,
     )
 
@@ -201,13 +212,13 @@ def parse_arguments():
     )
 
     parser.add_argument(
-        "--use_bilstm",
+        "--bilstm",
         type=str,
         help=(
             "should use bidirectional lstm or not (Y/N), "
-            f"default: {DEFAULT_USE_BIDIRECTIONAL_LSTM}"
+            f"default: {DEFAULT_BiLSTM}"
         ),
-        default=DEFAULT_USE_BIDIRECTIONAL_LSTM,
+        default=DEFAULT_BiLSTM,
     )
 
     parser.add_argument(
@@ -228,23 +239,23 @@ def parse_arguments():
     )
 
     parser.add_argument(
-        "--use_crf",
+        "--crf",
         type=str,
         help=(
             "should use Conditional Random Field or not (Y/N), "
-            f"default: {DEFAULT_USE_CRF}"
+            f"default: {DEFAULT_CRF}"
         ),
-        default=DEFAULT_USE_CRF,
+        default=DEFAULT_CRF,
     )
 
     parser.add_argument(
-        "--use_masks",
+        "--masks",
         type=str,
         help=(
             "should use masks when using Conditional Random Field "
-            f" or not (Y/N), default: {DEFAULT_USE_MASKS}"
+            f" or not (Y/N), default: {DEFAULT_MASKS}"
         ),
-        default=DEFAULT_USE_MASKS,
+        default=DEFAULT_MASKS,
     )
 
     parser.add_argument(
@@ -274,10 +285,10 @@ def parse_arguments():
     )
 
     parser.add_argument(
-        "--num_epochs",
+        "--epochs",
         type=int,
-        help=f"number of training epochs, default: {DEFAULT_NUM_EPOCHS}",
-        default=DEFAULT_NUM_EPOCHS,
+        help=f"number of training epochs, default: {DEFAULT_EPOCHS}",
+        default=DEFAULT_EPOCHS,
     )
 
     parser.add_argument(
@@ -288,6 +299,20 @@ def parse_arguments():
             f", default: {DEFAULT_SAVE_CM_AFTER_EVERY_N_EPOCHS}"
         ),
         default=DEFAULT_SAVE_CM_AFTER_EVERY_N_EPOCHS,
+    )
+
+    parser.add_argument(
+        "--monitor",
+        type=str,
+        help=(
+            "monitor criteria to save model checkpoint, "
+            "available monitor criterias with crf: "
+            f"[{', '.join(list(DEFAULT_AVAILABLE_MONITOR_AND_MODE_WITH_CRF.keys()))}], "
+            f"without crf: "
+            f"[{', '.join(list(DEFAULT_AVAILABLE_MONITOR_AND_MODE_WITHOUT_CRF.keys()))}], "
+            f"default: {DEFAULT_MONITOR}"
+        ),
+        default=DEFAULT_MONITOR,
     )
 
     parser.add_argument(
@@ -341,7 +366,7 @@ def main():
         dir_train=args.processed_data_dir_train,
         dir_val=args.processed_data_dir_val,
         to_lower=True if args.to_lower == "Y" else False,
-        seq_length=args.max_seq_len,
+        seq_length=args.seq_len,
         embed_dim=args.embed_dim,
         pre_trained_embed_type=pre_trained_embed_type,
         load_pre_trained_embed_fp=load_pre_trained_embed_fp,
@@ -351,16 +376,18 @@ def main():
         num_workers_train=args.num_workers_train,
         num_workers_val=args.num_workers_val,
         hidden_size=args.hidden_size,
-        bidirectional=True if args.use_bilstm == "Y" else False,
+        bidirectional=True if args.bilstm == "Y" else False,
         num_lstm_layers=args.num_lstm_layers,
         lstm_dropout=args.lstm_dropout,
-        use_crf=True if args.use_crf == "Y" else False,
-        use_masks=True if args.use_masks == "Y" else False,
+        crf=True if args.crf == "Y" else False,
+        masks=True if args.masks == "Y" else False,
         ce_weight=args.ce_loss_weight,
         crf_nllh_weight=args.crf_nllh_weight,
         lr=args.lr,
-        epochs=args.num_epochs,
+        epochs=args.epochs,
         save_cm_after_every_n_epochs=args.save_cm_after_every_n_epochs,
+        monitor=args.monitor,
+        mode=DEFAULT_AVAILABLE_MONITOR_AND_MODE_WITH_CRF[args.monitor],
         log_dir=args.log_dir,
         random_seed=args.random_seed,
         parser_args=args.__dict__,
@@ -429,13 +456,15 @@ def run_model(
     bidirectional: bool,
     num_lstm_layers: int,
     lstm_dropout: float,
-    use_crf: bool,
-    use_masks: bool,
+    crf: bool,
+    masks: bool,
     ce_weight: float,
     crf_nllh_weight: float,
     lr: float,
     epochs: int,
     save_cm_after_every_n_epochs: int,
+    monitor: str,
+    mode: str,
     log_dir: int,
     random_seed: int,
     parser_args: Dict[str, Any],
@@ -481,7 +510,7 @@ def run_model(
     )
 
     logger.info("Initializing PyTorch Lightning Model ...")
-    if not use_crf:
+    if not crf:
         model = LitLSTMNERTagger(
             embedding_dim=embed_dim,
             vocab_size=vocab.num_uniq_tokens,
@@ -505,7 +534,7 @@ def run_model(
             num_lstm_layers=num_lstm_layers,
             bidirectional=bidirectional,
             lstm_dropout=lstm_dropout,
-            use_masks=use_masks,
+            use_masks=masks,
             ce_weight=ce_weight,
             crf_nllh_weight=crf_nllh_weight,
             lr=lr,
@@ -516,15 +545,13 @@ def run_model(
     # logger for current experiment
     csv_logger = CSVLogger(
         save_dir=log_dir,
-        name=DEFAULT_EXPERIMENT_NAME
-        if use_crf is False
-        else "ner_ehr_lstm_crf",
+        name=DEFAULT_EXPERIMENT_NAME if crf is False else "ner_ehr_lstm_crf",
     )
     # save checkpoint callback during training
     save_checkpoint_callback = ModelCheckpoint(
         filename=DEFAULT_MODEL_CHECKPOINT_FP,
-        monitor=DEFAULT_MONITOR,
-        mode=DEFAULT_MODE,
+        monitor=monitor,
+        mode=mode,
         save_top_k=DEFAULT_SAVE_TOP_K,
     )
 
