@@ -2,6 +2,7 @@ from typing import Optional, Tuple
 
 import torch
 from torch import nn
+
 from ner_ehr.utils import copy_docstring
 
 NUM_LSTM_LAYERS: int = 1

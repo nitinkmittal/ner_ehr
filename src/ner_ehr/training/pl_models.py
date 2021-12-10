@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Optional, Tuple, Union, List
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import pytorch_lightning as pl
@@ -354,7 +354,7 @@ class LitLSTMCRFNERTagger(pl.LightningModule):
             lr: learning rate, default=.001
 
             save_cm_after_every_n_epochs: interval of epochs before saving
-                training and validation confusion matrices
+                training and validation confusion matrices, default=1
 
             **kwargs: other keyword-arguments
         """

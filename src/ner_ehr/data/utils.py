@@ -4,9 +4,9 @@ from typing import List, Union
 import pandas as pd
 
 from ner_ehr.data.variables import (
-    TokenTuple,
     AnnotationTuple,
     LongAnnotationTuple,
+    TokenTuple,
 )
 
 

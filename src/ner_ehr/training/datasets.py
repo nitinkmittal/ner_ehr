@@ -14,10 +14,7 @@ from torch.utils.data import DataLoader, Dataset
 from ner_ehr.data import Constants
 from ner_ehr.data.ehr import EHR
 from ner_ehr.data.utils import df_to_namedtuples, generate_token_seqs
-from ner_ehr.data.variables import (
-    AnnotationTuple,
-    LongAnnotationTuple,
-)
+from ner_ehr.data.variables import AnnotationTuple, LongAnnotationTuple
 from ner_ehr.data.vocab import TokenEntityVocab
 
 SEQ_LENGTH: int = 256
@@ -274,7 +271,6 @@ class EHRDataModule(LightningDataModule):
             num_workers_train: how many subprocesses to use for train
                 data loading. 0 means that the data will be loaded in
                 the main process, default=0
-
 
             num_workers_val: how many subprocesses to use for validation
                 data loading. 0 means that the data will be loaded in

@@ -184,7 +184,7 @@ class ScispacyTokenizer(Tokenizer):
 
     @copy_docstring(Tokenizer.tokenize)
     def tokenize(self, text: str) -> List[str]:
-        return self.tokenizer(text=text)
+        return self.tokenizer(text)
 
 
 class NLTKTokenizer(Tokenizer):

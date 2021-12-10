@@ -1,4 +1,6 @@
-"""Custom methods to generate annotated tokens."""
+"""This script contains custom parsers to
+    generate annotated tokens from EHR annotations and
+    unannotated tokens from EHR text-file."""
 import os
 from pathlib import Path
 from typing import List, Optional, Union
@@ -12,15 +14,16 @@ from ner_ehr.data.variables import (
 )
 from ner_ehr.parsers import AnnotationParser, TokenParser
 from ner_ehr.tokenizers import Tokenizer, _validate_token_idxs
+from ner_ehr.utils import copy_docstring
 
 
 def read_record(
     record_fp: Union[Path, str],
 ) -> str:
-    """Read EHR from given filepath.
+    """Read EHR text-file from given filepath.
 
     Args:
-        record_fp: filepath to EHR
+        record_fp: filepath to EHR text-file
 
     Returns:
         String text from EHR
@@ -37,57 +40,60 @@ def read_record(
 def extract_record_id(
     record_fp: Union[Path, str], remove_ext: bool = True
 ) -> str:
-    """Extract filename from given filepath.
+    """Extract filename as record_id/doc_id from given filepath.
 
     Args:
-        record_fp: filepath to EHR, ex: 100035.txt
+        record_fp: filepath to EHR text-file
 
         remove_ext: if True, file extension is removed
             otherwise not
 
     Returns:
-        record filename
+        string record_id/doc_id
     """
 
     filename = os.path.basename(record_fp)
     if remove_ext:
         filename = filename.split(".")[0]
-
     return filename
 
 
 class CustomAnnotationParser(AnnotationParser):
-    """Parser to process an annotation."""
+    """Parser for generating list of annotated tokens
+    from EHR annotations."""
 
+    @copy_docstring(Tokenizer.__init__)
     def __init__(
         self,
         tokenizer: Tokenizer,
     ):
-        """
-        Args:
-            tokenizer (callable): to convert string into list of tokens
-            >>> tokenizer.tokenize('this is a sentence') ->
-                ['this', 'is', 'a', 'sentence']
-        """
-
         super().__init__(
             tokenizer=tokenizer,
         )
 
     def _read_annotations(self, annotations_fp: Union[Path, str]) -> List[str]:
-        """Read annotations from given filepath.
+        """Read EHR annotations from given filepath to text-file.
 
         Args:
-            annotations_fp: filepath to annotations
+            annotations_fp: filepath to text-file with annotations
+                Sample annotations in text-file:
+                T1  Reason  10179   10197	recurrent seizures
+                R1	Reason-Drug Arg1:T1 Arg2:T3
+                T3	Drug 10227 10233	ativan
+                ...
 
         Returns:
             A list of string annotations
+                [
+                    T1  Reason  10179   10197	recurrent seizures,
+                    T3	Drug 10227 10233	ativan,
+                    ...,
+                ]
         """
         annotations = []
         with open(annotations_fp, "r") as f:
             for annotation in f.readlines():
                 annotation = str(annotation).strip()  # removing whitespace
-
                 # if empty or not an NER annotation
                 if not annotation or annotation[0] != "T":
                     continue
@@ -100,23 +106,24 @@ class CustomAnnotationParser(AnnotationParser):
         record_fp: Union[Path, str],
         doc_id: Optional[str] = None,
     ) -> List[AnnotationTuple]:
-        """Parse annotations.
+        """Parse annotations to generate list of annotated tokens.
 
         Args:
-            annotations_fp: filepath to annotations, ex: 100035.ann
-                Assumes file containing NER annotations.
-                For ex: `Reason 10179 10188`: token with characters
-                    between indexes 10179 and 10188 (inclusive)
-                    belong to `Reason` entity.
+            annotations_fp: filepath to EHR annotations, ex: 100035.ann
+                Sample annotations in text-file:
+                    T1  Reason  10179   10197	recurrent seizures
+                    R1	Reason-Drug Arg1:T1 Arg2:T3
+                    T3	Drug 10227 10233	ativan
+                    ...
 
-            record_fp: filepath to EHR, ex: 100035.txt
+            record_fp: filepath to EHR text-file
 
             doc_id: unique identifier for document/sample from which
-                variable is generated. Default: None
-                if None, then doc_id inferred from record_fp
+                tokens/annotations are generated, default=None
+                if None, then `doc_id` inferred from record_fp
 
         Returns:
-            A list of AnnotationTuples
+            A list of annotated tuples
                 Ex: [
                         Annotation(
                             doc_id="100035",
@@ -130,19 +137,21 @@ class CustomAnnotationParser(AnnotationParser):
                             start_idx=10189,
                             end_idx=10197,
                             entity='I-Reason'),
-                        ...
+                        ...,
                     ]
         """
 
         self.annotations: List[
             AnnotationTuple
         ] = []  # reinitialize list of AnnotationTuples
-        validate_token_idxs: bool = self.tokenizer.validate_token_idxs
 
-        # turning off this flag to avoid character index validation for substrings
+        # muting start and end character index checking while generating tokens
+        validate_token_idxs: bool = self.tokenizer.validate_token_idxs
         self.tokenizer.validate_token_idxs = False
 
+        # reading EHR annotations
         annotations = self._read_annotations(annotations_fp=annotations_fp)
+        # reading EHR text-file
         record = read_record(record_fp=record_fp)
 
         if doc_id is None:
@@ -183,43 +192,44 @@ class CustomAnnotationParser(AnnotationParser):
                 )()
                 self.annotations.append(annotation)
 
+        # validating start and end character indexing if `validate_token_idxs`
+        #   is True
         if validate_token_idxs:
             _validate_token_idxs(tokens=self.annotations, text=record)
 
-        # resetting this flag to avoid character index validation for substrings
+        # resetting flag `validate_token_idxs` to it's original value
         self.tokenizer.validate_token_idxs = validate_token_idxs
 
+        # sorting annotated tokens
         return sort_namedtuples(
             self.annotations, by=["doc_id", "start_idx"], ascending=True
         )
 
 
 class CustomTokenParser(TokenParser):
-    """Parser to process an annotation."""
+    """Parser for generating list of unannotated tokens
+    from EHR text."""
 
+    @copy_docstring(Tokenizer.__init__)
     def __init__(
         self,
         tokenizer: Tokenizer,
     ):
-        """
-        Args:
-        tokenizer (callable): to convert string into list of tokens
-            >>> tokenizer.tokenize('this is a sentence') -> ['this', 'is', 'a', 'sentence']
-        """
         super().__init__(
             tokenizer=tokenizer,
         )
 
-    def _parse(self, doc_id: str, substring: str, shift: int):
-        """Parse substrings within EHR.
+    def _parse(self, doc_id: str, substring: str, shift: int) -> None:
+        """Parse substrings within EHR text.
 
         Args:
             doc_id: unique identifier for document/sample from which
-                variable is generated
+                token is generated
 
-            substring: substring from EHR
+            substring: substring from EHR text
 
-            shift: to shift start and end character indexes of given token
+            shift: integer value to shift start and end character indexes
+                for each token
         """
         for token in self.tokenizer(doc_id=doc_id, text=substring):
             token = token._replace(
@@ -231,18 +241,21 @@ class CustomTokenParser(TokenParser):
     def parse(
         self,
         record_fp: Union[Path, str],
-        annotations: List[AnnotationTuple],
+        annotations: List[AnnotationTuple] = [],
         doc_id: Optional[str] = None,
     ) -> List[TokenTuple]:
-        """Parse EHR.
+        """Parse EHR text to generate list of unannotated token tuples.
 
-        Note: This parser requires list of AnnotationTuples
-            to preserve all annotated tokens while generating new tokens from EHR.
+        Note: this parser requires list of annotated token tuples
+            before parsing EHR text if annotations are already available
+            for given EHR text. Annotated token tuples are required
+            to preserve all original annotations and avoid incorrect
+            tokenization of unstructured EHR text.
 
         Args:
-            record_fp: filepath to EHR, ex: 100035.txt
+            record_fp: filepath to EHR text-file
 
-            annotations: a list of AnnotationTuples
+            annotations: a list of AnnotationTuples, default=[] (empty list)
                 Ex: [
                         Annotation(
                             doc_id="100035",
@@ -256,15 +269,15 @@ class CustomTokenParser(TokenParser):
                             start_idx=10189,
                             end_idx=10197,
                             entity='I-Reason'),
-                    ...
+                        ...,
                     ]
 
             doc_id: unique identifier for document/sample from which
-                variable is generated. Default: None
-                if None, then doc_id inferred from record_fp
+                tokens/annotations are generated, default=None
+                if None, then `doc_id` inferred from record_fp
 
         Returns:
-            A list of TokenTuples
+            A list of unannotated token tuples
                 Ex: [
                         TokenTuple(
                             doc_id="100035",
@@ -276,14 +289,13 @@ class CustomTokenParser(TokenParser):
                             token='seizures',
                             start_idx=10189,
                             end_idx=10197),
-                    ...
+                    ...,
                     ]
         """
         self.tokens: List[TokenTuple] = []  # reinitialize list of TokenTuples
-        # muting index checking while generating tokens
-        validate_token_idxs: bool = self.tokenizer.validate_token_idxs
 
-        # turning off this flag to avoid character index validation for substrings
+        # muting start and end character index checking while generating tokens
+        validate_token_idxs: bool = self.tokenizer.validate_token_idxs
         self.tokenizer.validate_token_idxs = False
 
         record: str = read_record(record_fp=record_fp)
@@ -295,7 +307,7 @@ class CustomTokenParser(TokenParser):
 
         for i, ann in enumerate(annotations):
             end_idx = ann.start_idx
-            # adding tokens before annotation
+            # adding tokens before this annotation
             self._parse(
                 doc_id=doc_id,
                 substring=record[start_idx:end_idx],
@@ -317,12 +329,15 @@ class CustomTokenParser(TokenParser):
             doc_id=doc_id, substring=record[start_idx:], shift=start_idx
         )
 
+        # validating start and end character indexing if `validate_token_idxs`
+        #   is True
         if validate_token_idxs:
             _validate_token_idxs(tokens=self.tokens, text=record)
 
-        # resetting this flag to avoid character index validation for substrings
+        # resetting flag `validate_token_idxs` to it's original value
         self.tokenizer.validate_token_idxs = validate_token_idxs
 
+        # sorting unannotated tokens
         return sort_namedtuples(
             self.tokens, by=["doc_id", "start_idx"], ascending=True
         )
