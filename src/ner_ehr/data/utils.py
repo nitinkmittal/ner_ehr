@@ -1,50 +1,67 @@
 """This module contain helper utilities to prepare data for NER."""
-from pathlib import Path
 from typing import List, Union
 
 import pandas as pd
 
-from ner_ehr.data.variables import AnnotationTuple, TokenTuple
-
-# def sort_namedtuples(
-#     func: Callable[[Any], Union[List[AnnotationTuple], List[TokenTuple]]],
-#     by: Union[str, List[str]] = ["doc_id", "start_idx"],
-# ):
-#     """Wrapper to sort list of AnnotationTuples or TokenTuples
-#     by `start_idx` in ascending order.
-
-#     Note: NamedTuples are sort in ascending order by doc_id, start_idx
-#     """
-
-#     def wrapper(*args, **kwargs):
-#         namedtuples = func(*args, **kwargs)
-
-#         if "doc_id" not in namedtuples[0]._fields:
-#             raise AttributeError(
-#                 f"Field `doc_id` missing in {type(namedtuples[0]).__name__}"
-#             )
-
-#         if "start_idx" not in namedtuples[0]._fields:
-#             raise AttributeError(
-#                 f"Field `start_idx` missing in {type(namedtuples[0]).__name__}"
-#             )
-#         df = pd.DataFrame(namedtuples).sort_values(by=by)
-#         return list(
-#             df.itertuples(name=type(namedtuples[0]).__name__, index=False)
-#         )
-
-#     return wrapper
+from ner_ehr.data.variables import (
+    TokenTuple,
+    AnnotationTuple,
+    LongAnnotationTuple,
+)
 
 
 def sort_namedtuples(
-    namedtuples: Union[List[AnnotationTuple], List[TokenTuple]],
+    namedtuples: Union[
+        List[TokenTuple], List[AnnotationTuple], List[LongAnnotationTuple]
+    ],
     by: Union[str, List[str]] = ["doc_id", "start_idx"],
     ascending: bool = True,
 ):
     """Sort list of TokenTuples/AnnotationTuples/LongAnnotationTuples
     by given condition in given order.
 
-    Note: NamedTuples are sort in ascending order by doc_id, start_idx
+    Args:
+        namedtuples: a list of
+            tokentuples, ex: [
+                                Token(
+                                    doc_id="100035",
+                                    token='recurrent',
+                                    start_idx=10179,
+                                    end_idx=10188,),
+                                ...
+                            ]
+            or
+            annotatedtuples, ex: [
+                                Annotation(
+                                    doc_id="100035",
+                                    token='recurrent',
+                                    start_idx=10179,
+                                    end_idx=10188,
+                                    entity='B-Reason',),
+                                ...
+                            ]
+            or
+            long_annotationtuples, ex: [
+                                LongAnnotation(
+                                    doc_id="100035",
+                                    token='recurrent',
+                                    start_idx=10179,
+                                    end_idx=10188,
+                                    entity='B-Reason',
+                                    token_idx=2,
+                                    entity_label=2,),
+                                ...
+                            ]
+
+        by: string or list of string,
+            fields within each namedtuple
+
+        ascending: boolean flag, default=False,
+            if True, namedtuples are sorted in ascending order on
+            given condition other sorted in descending order
+
+        Returns:
+            A list of sorted namedtuples
     """
 
     def check_field(field: str):
@@ -64,56 +81,75 @@ def sort_namedtuples(
 
 def df_to_namedtuples(
     name: str, df: pd.core.frame.DataFrame
-) -> Union[List[AnnotationTuple], List[TokenTuple]]:
-    """Convert given dataframe into list of namedtuples."""
+) -> Union[List[TokenTuple], List[AnnotationTuple], List[LongAnnotationTuple]]:
+    """Convert given dataframe into list of namedtuples.
+
+    Args:
+        name: string name of every namedtuple formed from rows of dataframe.
+
+    Returns:
+        A list of namedtuples
+    """
     return list(df.itertuples(name=name, index=False))
 
 
 def generate_token_seqs(
-    annotatedtuples: List[AnnotationTuple], seq_length: int = 256
-) -> List[List[AnnotationTuple]]:
-    """Generate sequences of AnnotatedTuples of given seq_length.
+    annotatedtuples: Union[List[AnnotationTuple], List[LongAnnotationTuple]],
+    seq_length: int = 256,
+) -> Union[List[List[AnnotationTuple]], List[List[LongAnnotationTuple]]]:
+    """Generate sequences of AnnotatedTuples of with maximum length
+        as given `seq_length`.
 
-        Note: Ensure that sequence of tokens generated preserve
-            continuation of `IOB` tagging within every sequence,
-            i.e. `B-` and `I-` entity tags in continuation
-                are kept in same sequence.
-            Doing so, a sequence can be shorter than given length,
-            i.e. not all sequences are of given `seq_length`.
+    Note: this function ensures that sequences of tokens generated preserve
+        continuation of `IOB` tagging within every sequence,
+        i.e. `B-` and `I-` tags of an entity in continuation
+        are kept in same sequence.
+        Doing so, a sequence can be shorter than given `seq_length`,
+        i.e. not all sequences are of given `seq_length`.
+
+        Also, this function is not implemented to generated sequences
+            of `seq_length=1`
 
     Args:
-        annotatedtuples: list of AnnotatedToken tuples
-                [
-                    Annotation(
-                        doc_id='100035',
-                        token='Admission',
-                        start_idx=0,
-                        end_idx=9,
-                        entity='O'),
-                    Annotation(
-                        doc_id='100035',
-                        token='Date',
-                        start_idx=10,
-                        end_idx=14,
-                        entity='O'),
-                ]
+        namedtuples: a list of
+            annotatedtuples, ex: [
+                                    Annotation(
+                                        doc_id="100035",
+                                        token='recurrent',
+                                        start_idx=10179,
+                                        end_idx=10188,
+                                        entity='B-Reason',),
+                                    ...
+                                    ]
+            or
+            long_annotationtuples, ex: [
+                                    LongAnnotation(
+                                        doc_id="100035",
+                                        token='recurrent',
+                                        start_idx=10179,
+                                        end_idx=10188,
+                                        entity='B-Reason',
+                                        token_idx=2,
+                                        entity_label=2,),
+                                    ...
+                                    ]
 
-        seq_length: maximum length of sub-sequences
+        seq_length: maximum length of sequences, default=256
 
     Returns:
         A list of list of AnnotatedTuples
     """
 
     if seq_length == 1:
-        raise ValueError(
-            "Sequence generation not implemented for seq_length = 1"
-        )
+        raise ValueError("Not implemented for seq_length=1")
 
-    seqs: List[List[AnnotationTuple]] = []
+    seqs: Union[
+        List[List[AnnotationTuple]], List[List[LongAnnotationTuple]]
+    ] = []
     total_tokens: int = len(annotatedtuples)
 
     def find_end(start: int):
-        """Find end index for a sequence  with respect to start idx."""
+        """Find end index for a sequence with respect to start idx."""
         end = start + seq_length
         if end > total_tokens:
             end = total_tokens
@@ -158,8 +194,3 @@ def generate_token_seqs(
         start = end
         end = find_end(start)
     return seqs
-
-
-def read_csv(fp: Union[Path, str], **kwargs) -> pd.core.frame.DataFrame:
-    """Helper function to read a CSV."""
-    return pd.read_csv(fp, **kwargs)

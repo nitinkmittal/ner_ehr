@@ -1,4 +1,4 @@
-"""Contain callable function definations."""
+"""This module contains parser definitions."""
 from abc import ABC
 from typing import List, Union
 
@@ -14,7 +14,16 @@ class Parser(ABC):
     def parse(
         self, **kwargs
     ) -> Union[List[AnnotationTuple], List[TokenTuple]]:
-        raise NotImplementedError("No parser assigned ...")
+        """
+        Base callable parser.
+
+        Args:
+            **kwargs: keyword-arguments
+
+        Returns:
+            A list of tokentuples or annotatedtuples
+        """
+        raise NotImplementedError("Parser not implemented ...")
 
     def __call__(
         self, **kwargs
@@ -23,22 +32,22 @@ class Parser(ABC):
 
 
 class AnnotationParser(Parser):
-    """Base parser to generate list of AnnotationTuples."""
+    """Base parser to generate list of annotated tuples."""
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.annotations: List[AnnotationTuple] = None
 
     def parse(self, **kwargs) -> List[AnnotationTuple]:
-        raise NotImplementedError("No parser assigned ...")
+        raise NotImplementedError("Parser not implemented ...")
 
 
 class TokenParser(Parser):
-    """Base parser to generate list of TokenTuples."""
+    """Base parser to generate list of token (unannotated) tuples."""
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.tokens: List[TokenTuple] = None
 
     def parse(self, **kwargs) -> List[TokenTuple]:
-        raise NotImplementedError("No parser assigned ...")
+        raise NotImplementedError("Parser not implemented ...")

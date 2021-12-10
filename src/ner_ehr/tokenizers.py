@@ -1,20 +1,22 @@
-"""This module contains defination for base tokenizer."""
+"""This module contains definition for tokenizers."""
 from abc import ABC
 from typing import Callable, List
 
 from ner_ehr.data.variables import Token, TokenTuple
 from ner_ehr.utils import copy_docstring
 
+VALIDATE_TOKEN_IDXS: bool = False
+
 
 def _validate_token_idxs(tokens: List[TokenTuple], text: str) -> None:
-    """Validate assigned indexes for each token from given text.
+    """Validate assigned indexes for token generated from given text.
 
     Raises ValueError if incorrect indexes are assigned to tokens.
 
     Args:
-        tokens: a list of Token(token, start_idx, end_idx)
+        tokens: a list of token tuples, Token(token, start_idx, end_idx)
 
-        text: string from which tokens are generated from
+        text: string from which tokens are generated
 
     Returns:
         None
@@ -35,12 +37,13 @@ class Tokenizer(ABC):
     def __init__(
         self,
         tokenizer: Callable[[str], List[str]],
-        validate_token_idxs: bool = False,
+        validate_token_idxs: bool = VALIDATE_TOKEN_IDXS,
         **kwargs,
     ):
         """
         Args:
-            tokenizer (callable): to convert string into list of tokens
+            tokenizer (callable): callabel function to convert string into
+                list of tokens
             >>> tokenizer.tokenize('this is a sentence')
                 -> ['this', 'is', 'a', 'sentence']
 
@@ -61,7 +64,7 @@ class Tokenizer(ABC):
         Returns:
             A list of string tokens
         """
-        raise NotImplementedError("No tokenizer assigned ...")
+        raise NotImplementedError("No tokenizer implemented ...")
 
     def _map_token_idxs(
         self,
@@ -74,14 +77,14 @@ class Tokenizer(ABC):
 
         Args:
             doc_id: unique identifier for document/sample from which
-                variable is generated
+                token tuple is generated
 
             text: a string from which tokens are generated
 
             tokens: a list of string tokens
 
         Returns:
-            A list of NamedTuples, Tokens(token, start_idx, end_idx)
+            A list of token tuples, Tokens(token, start_idx, end_idx)
         """
         idx_mapped_tokens = []
         start_idx, end_idx = 0, 0
@@ -122,17 +125,22 @@ class Tokenizer(ABC):
 
 
 class SplitTokenizer(Tokenizer):
-    """Split given string into list of string tokens at given separator."""
+    """Split given string at given separator
+    to generate list of string tokens."""
 
     def __init__(
         self,
         sep: str = " ",
         splitlines: bool = False,
-        validate_token_idxs: bool = False,
+        validate_token_idxs: bool = VALIDATE_TOKEN_IDXS,
     ):
         """
         Args:
-            sep: separator used to split a string into list of string tokens
+            sep: string separator used to split string
+                into list of string tokens
+
+            splitlines: boolean flag, default=False
+                if True, string is splitted at new line character
 
             validate_token_idxs (boolean): if True, start and end character
                 indexes for each token are validated for given text,
@@ -160,7 +168,7 @@ class ScispacyTokenizer(Tokenizer):
     """Scispacy tokenizer from a spaCy NER model
     trained on the BC5CDR corpus."""
 
-    def __init__(self, validate_token_idxs: bool = False):
+    def __init__(self, validate_token_idxs: bool = VALIDATE_TOKEN_IDXS):
         """
         Args:
             validate_token_idxs (boolean): if True, start and end character
@@ -180,7 +188,9 @@ class ScispacyTokenizer(Tokenizer):
 
 
 class NLTKTokenizer(Tokenizer):
-    def __init__(self, validate_token_idxs: bool = False):
+    """NLTK tokenizer."""
+
+    def __init__(self, validate_token_idxs: bool = VALIDATE_TOKEN_IDXS):
         """
         Args:
             validate_token_idxs (boolean): if True, start and end character

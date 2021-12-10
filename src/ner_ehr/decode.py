@@ -1,3 +1,5 @@
+"""This module can be used to decode emissions
+    using argmax and viterbi decoding techniques."""
 from typing import Optional
 
 import torch
@@ -7,13 +9,15 @@ from ner_ehr.data import Constants
 
 
 def argmax_decode(emissions: torch.FloatTensor) -> torch.LongTensor:
-    """
+    """Greedy decoding of state/tag/entity sequence.
+
     Args:
         emissions `torch.FloatTensor`: (batch_size, seq_length, num_classes)
 
     Returns:
-        sequence `torch.LongTensor`: (batch_size, seq_length)
+        sequences `torch.LongTensor`: (batch_size, seq_length)
     """
+    assert emissions.ndim == 3
     with torch.no_grad():
         seqs = torch.argmax(nn.functional.softmax(emissions, dim=-1), dim=-1)
     return seqs
@@ -27,20 +31,24 @@ def viterbi_decode(
     masks: Optional[torch.BoolTensor] = None,
 ) -> torch.LongTensor:
     """
+    Viterbi decoding of state/tag/entity sequence.
+
+    Copied from: https://github.com/kmkurn/pytorch-crf/blob/8f3203a1f1d7984c87718bfe31853242670258db/torchcrf/__init__.py#L259
+
     Args:
-        emissions: (seq_length, batch_size, num_classes) if batch_first=False,
-            else (batch_size, seq_length, num_classes)
+        emissions `torch.FloatTensor`: (batch_size, seq_length, num_classes)
 
-        masks: (seq_length, batch_size) if batch_first=False,
-            else (batch_size, seq_length)
+        start_transitions `torch.FloatTensor`: (num_classes, )
 
-        start_transitions: (num_classes, )
+        end_transitions `torch.FloatTensor`: (num_classes, )
 
-        end_transitions: (num_classes, )
+        transitions `torch.FloatTensor`: (num_classes, num_classes)
 
-        transitions: (num_classes, num_classes)
+        masks `torch.BoolTensor`: (seq_length, batch_size)
+            optional, default=None
 
-        batch_first: default=False
+    Returns:
+        sequences `torch.LongTensor`: (batch_size, seq_length)
     """
     batch_size, seq_length = emissions.shape[:2]
 

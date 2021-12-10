@@ -4,8 +4,12 @@ from pathlib import Path
 from typing import List, Optional, Union
 
 from ner_ehr.data.utils import sort_namedtuples
-from ner_ehr.data.variables import (Annotation, AnnotationTuple, Token,
-                                    TokenTuple)
+from ner_ehr.data.variables import (
+    Annotation,
+    AnnotationTuple,
+    Token,
+    TokenTuple,
+)
 from ner_ehr.parsers import AnnotationParser, TokenParser
 from ner_ehr.tokenizers import Tokenizer, _validate_token_idxs
 
@@ -126,7 +130,7 @@ class CustomAnnotationParser(AnnotationParser):
                             start_idx=10189,
                             end_idx=10197,
                             entity='I-Reason'),
-                    ...
+                        ...
                     ]
         """
 
