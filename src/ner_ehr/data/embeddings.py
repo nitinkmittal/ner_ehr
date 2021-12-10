@@ -1,4 +1,5 @@
-"""Contain utilities to handle embeddings."""
+"""This module contain utilities to read pre-trained embeddings
+    into `gensim.models.keyedvectors`."""
 from abc import ABC
 from pathlib import Path
 from typing import List, Union
@@ -6,16 +7,18 @@ from typing import List, Union
 import numpy as np
 from gensim.models import KeyedVectors, keyedvectors
 
-from ner_ehr.utils import copy_docstring, validate_list
+from ner_ehr.utils import validate_list
 
 TO_LOWER: bool = False
 
+FORCE_LOAD = False
+
 
 class Embeddings(ABC):
-    """Base class for embeddings.
+    """Base class to read pre-trained embeddings.
 
-    Methods under this class can be used to load embedding
-    in gensim.word2vec format
+    Methods under this class can be used to load pre-trained embeddings
+    in `gensim.models.keyedvectors` format.
     """
 
     def __init__(
@@ -26,37 +29,39 @@ class Embeddings(ABC):
     ):
         """
         Args:
-            unknown_token_embedding: embedding vector for tokens not
-                present in pre-trained embeddings. Dimension of unknown
-                embedding vector should be equal to dimension of pre-trained
-                embedding vectors
+            unknown_token_embedding: embedding vector to be used
+                for tokens not present in pre-trained embeddings vocab.
+                Dimension of unknown embedding vector should be equal
+                to dimension of pre-trained embedding vectors
 
             to_lower: boolean flag, default=True
                 if True, tokens are lowercased otherwise not
 
             **kwargs: other keyword-arguments
         """
-
         self.to_lower = to_lower
         self.unknown_token_embedding = unknown_token_embedding
         self.embeddings: keyedvectors.KeyedVectors = None
         self.__dict__.update(kwargs)
 
     def load_word2vec(self, **kwargs) -> None:
-        """Helper function to load embeddings in form of genism word2vec."""
+        """Helper function to load pre-trained embeddings in
+        `gensim.models.keyedvectors` format."""
         raise NotImplementedError("Not implemented ..")
 
     def __call__(self, tokens: Union[str, List[str]]) -> np.ndarray:
-        """Return NumPy array containing embedding vectors for given tokens
+        """Return NumPy array containing embedding vectors for given token/s.
 
         `unknown_token_embedding` is used for tokens not present
-        in pre-trained word2vec embeddings.
+        in pre-trained embeddings vocab.
 
         Args:
-            tokens: a list of string tokens
+            tokens: string or list of string tokens
 
         Returns:
-            A 2-D NumPy array with pre-trained embeddings
+            embeddings: A 2-D NumPy array of shape
+                (number of tokens, embedding dimension)
+                containing pre-trained embeddings for given tokens
         """
         if isinstance(tokens, str):
             tokens = [tokens]
@@ -75,24 +80,46 @@ class Embeddings(ABC):
 
 
 class GloveEmbeddings(Embeddings):
+    """Load pre-trained `glove` embeddings in `gensim.models.keyedvectors`
+    format."""
+
     def __init__(
         self,
         unknown_token_embedding: np.ndarray,
         glove_fp: Union[str, Path],
         to_lower: bool = TO_LOWER,
     ):
+        """
+        Args:
+            unknown_token_embedding: embedding vector to be used
+                for tokens not present in pre-trained embeddings vocab.
+                Dimension of unknown embedding vector should be equal
+                to dimension of pre-trained embedding vectors
+
+            glove_fp: filepath to pre-trained glove embeddings
+
+            to_lower: boolean flag, default=True
+                if True, tokens are lowercased otherwise not
+        """
         super().__init__(
             unknown_token_embedding=unknown_token_embedding,
             to_lower=to_lower,
             glove_fp=glove_fp,
         )
 
-    @copy_docstring(Embeddings.load_word2vec)
     def load_word2vec(
         self,
-        force_load: bool = False,
+        force_load: bool = FORCE_LOAD,
     ):
-        """Note: embeddings are for uncased tokens."""
+        """Load pre-trained `glove` embeddings in
+        `gensim.models.keyedvectors` format.
+
+        Pre-trained can be found on https://nlp.stanford.edu/projects/glove/
+
+        Args:
+            force_load: boolean flag, if True embeddings are loaded everytime
+                this function is called, otherwise not, default=False
+        """
         if (
             isinstance(self.embeddings, keyedvectors.KeyedVectors)
             and not force_load
@@ -113,24 +140,46 @@ class GloveEmbeddings(Embeddings):
 
 
 class PubMedicalEmbeddings(Embeddings):
+    """Load pre-trained `PubMedical` embeddings in `gensim.models.keyedvectors`
+    format."""
+
     def __init__(
         self,
         unknown_token_embedding: np.ndarray,
         pubmed_fp: Union[str, Path],
         to_lower: bool = TO_LOWER,
     ):
+        """
+        Args:
+            unknown_token_embedding: embedding vector to be used
+                for tokens not present in pre-trained embeddings vocab.
+                Dimension of unknown embedding vector should be equal
+                to dimension of pre-trained embedding vectors
+
+            glove_fp: filepath to pre-trained PubMedical embeddings
+
+            to_lower: boolean flag, default=True
+                if True, tokens are lowercased otherwise not
+        """
         super().__init__(
             unknown_token_embedding=unknown_token_embedding,
             to_lower=to_lower,
             pubmed_fp=pubmed_fp,
         )
 
-    @copy_docstring(Embeddings.load_word2vec)
     def load_word2vec(
         self,
-        force_load: bool = False,
+        force_load: bool = FORCE_LOAD,
     ):
-        """Note: embeddings are for uncased tokens."""
+        """Load pre-trained `Biomedical Public` embeddings in
+        `gensim.models.keyedvectors` format.
+
+        Pre-trained `Biomedical Public` can be found on
+        https://archive.org/download/pubmed2018_w2v_200D.tar/pubmed2018_w2v_200D.tar.gz
+
+        force_load: boolean flag, if True embeddings are loaded everytime
+                this function is called, otherwise not, default=False
+        """
         if (
             isinstance(self.embeddings, keyedvectors.KeyedVectors)
             and not force_load
@@ -146,5 +195,5 @@ class PubMedicalEmbeddings(Embeddings):
             raise ValueError(
                 "Vector size of `unknown_token_embedding`: "
                 f"{self.unknown_token_embedding.shape} "
-                f"!= glove embedding-size: ({self.embeddings.vector_size},)"
+                f"!= `pubmed` embedding-size: ({self.embeddings.vector_size},)"
             )

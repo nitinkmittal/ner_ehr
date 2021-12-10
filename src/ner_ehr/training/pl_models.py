@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import pytorch_lightning as pl
@@ -20,7 +20,6 @@ from ner_ehr.utils import load_np, save_np
 
 EMBEDDING_WEIGHTS_FP: Optional[Union[str, Path]] = None
 LR: float = 0.001
-DTYPE = None
 SAVE_CM_AFTER_EVERY_N_EPOCHS: int = 1
 USE_MASKS: bool = False
 CE_WEIGHT: float = 1.0
@@ -41,10 +40,44 @@ class LitLSTMNERTagger(pl.LightningModule):
         lstm_dropout: float = LSTM_DROPOUT,
         bidirectional: bool = BIDIRECTIONAL,
         lr: float = LR,
-        dtype: Optional = DTYPE,
         save_cm_after_every_n_epochs: int = SAVE_CM_AFTER_EVERY_N_EPOCHS,
         **kwargs,
     ):
+        """
+        Args:
+            embedding_dim: embedding dimension
+
+            vocab_size: vocabulary size
+
+            hidden_size: number of hidden units in LSTM layer
+
+            num_classes: number of classes/entities to tag
+
+            embedding_weights_fp: filepath to pre-trained embeddings weights,
+                optional, default=None
+                if None, embedding weights are learned on the fly,
+                if not None, then embedding layer is set to untrainable
+
+            num_lstm_layers: number of recurrent layers
+                E.g., setting num_layers=2 would mean stacking two LSTMs
+                together to form a stacked LSTM, with the second LSTM
+                taking in outputs of the first LSTM and
+                computing the final results, default=1
+
+            lstm_dropout: if non-zero, introduces a dropout layer
+                on the outputs of each LSTM layer except the last layer,
+                with dropout probability equal to dropout. default=0.0
+
+            bidirectional: if True, becomes a bidirectional LSTM
+                default=False
+
+            lr: learning rate, default=.001
+
+            save_cm_after_every_n_epochs: interval of epochs before saving
+                training and validation confusion matrices
+
+            **kwargs: other keyword-arguments
+        """
         super().__init__()
 
         self.save_hyperparameters()
@@ -54,8 +87,8 @@ class LitLSTMNERTagger(pl.LightningModule):
         if embedding_weights_fp is not None:
             embedding_weights = load_np(fp=embedding_weights_fp)
             embedding_weights = torch.tensor(
-                embedding_weights, dtype=dtype
-            ).cuda()
+                embedding_weights, device=self.device
+            )
 
         # model initialization
         self.lstm_ner_tagger = LSTMNERTagger(
@@ -88,12 +121,20 @@ class LitLSTMNERTagger(pl.LightningModule):
         )
 
     def forward(self, X: torch.FloatTensor) -> torch.FloatTensor:
+        """Forward pass for LSTMNERTagger.
+
+        Args:
+            X: tensor of shape (batch_size, seq_length)
+
+        Returns:
+            A tensor of shape (batch_size, seq_length, num_classes)
+        """
         return self.lstm_ner_tagger(X)
 
     def on_train_epoch_end(
         self,
     ):
-        """Hook after training epoch end."""
+        """Hook after called after end of every training epoch."""
         if (
             self.current_epoch == 0
             or (self.current_epoch + 1)
@@ -110,7 +151,7 @@ class LitLSTMNERTagger(pl.LightningModule):
         self._init_cm_train()
 
     def validation_epoch_end(self, val_step_end_outputs: torch.FloatTensor):
-        """Hook after validation epoch end."""
+        """Hook after called after end of every validation epoch."""
         if (
             self.current_epoch == 0
             or (self.current_epoch + 1)
@@ -126,7 +167,29 @@ class LitLSTMNERTagger(pl.LightningModule):
             )
         self._init_cm_val()
 
-    def training_step(self, batch, batch_idx: int) -> float:
+    def training_step(
+        self,
+        batch: Tuple[
+            Tuple[torch.LongTensor, torch.LongTensor],
+            Optional[List[Tuple[str, str, int, int, str]]],
+        ],
+        batch_idx: int,
+    ) -> torch.FloatTensor:
+        """Training step for LitLSTMNERTagger.
+
+        Args:
+            batch: tuple (X, Y, Optional(meta))
+                X: tensor of shape (batch_size, seq_length)
+                Y: tensor of shape (batch_size, seq_length)
+                meta: list of length=batch_size with each entry
+                    as a list of length=seq_length with each entry as
+                    as a tuple of (str, str, int, int, str), optional
+
+            batch_idx: current batch index
+
+        Returns:
+            A scalar cross-entropy loss between X and Y
+        """
         X, Y, _ = batch
         Y_hat = self.forward(X)
 
@@ -168,7 +231,22 @@ class LitLSTMNERTagger(pl.LightningModule):
 
         return ce_loss
 
-    def validation_step(self, batch, batch_idx: int) -> float:
+    def validation_step(self, batch, batch_idx: int) -> torch.FloatTensor:
+        """Validation step for LitLSTMNERTagger.
+
+        Args:
+            batch: tuple (X, Y, Optional(meta))
+                X: tensor of shape (batch_size, seq_length)
+                Y: tensor of shape (batch_size, seq_length)
+                meta: list of length=batch_size with each entry
+                    as a list of length=seq_length with each entry as
+                    as a tuple of (str, str, int, int, str), optional
+
+            batch_idx: current batch index
+
+        Returns:
+            A scalar cross-entropy loss between X and Y
+        """
         X, Y, _ = batch
         Y_hat = self.forward(X)
 
@@ -233,10 +311,53 @@ class LitLSTMCRFNERTagger(pl.LightningModule):
         ce_weight: float = CE_WEIGHT,
         crf_nllh_weight: float = CRF_NLLH_WEIGHT,
         lr: float = LR,
-        dtype: Optional = DTYPE,
         save_cm_after_every_n_epochs: int = SAVE_CM_AFTER_EVERY_N_EPOCHS,
         **kwargs,
     ):
+        """
+        Args:
+            embedding_dim: embedding dimension
+
+            vocab_size: vocabulary size
+
+            hidden_size: number of hidden units in LSTM layer
+
+            num_classes: number of classes/entities to tag
+
+            embedding_weights_fp: filepath to pre-trained embeddings weights,
+                optional, default=None
+                if None, embedding weights are learned on the fly,
+                if not None, then embedding layer is set to untrainable
+
+            num_lstm_layers: number of recurrent layers
+                E.g., setting num_layers=2 would mean stacking two LSTMs
+                together to form a stacked LSTM, with the second LSTM
+                taking in outputs of the first LSTM and
+                computing the final results, default=1
+
+            lstm_dropout: if non-zero, introduces a dropout layer
+                on the outputs of each LSTM layer except the last layer,
+                with dropout probability equal to dropout. default=0.0
+
+            bidirectional: if True, becomes a bidirectional LSTM
+                default=False
+
+            use_masks: if True, boolean masks are used while calculating
+                CRF negative log-likelihood, otherwise not, default=False
+
+            ce_weight: scalar float value multiplied with cross-entropy loss,
+                default=1.0
+
+            crf_nllh_weight: scalar float value multiplied with
+                CRF negative log-likelihood, default=.001
+
+            lr: learning rate, default=.001
+
+            save_cm_after_every_n_epochs: interval of epochs before saving
+                training and validation confusion matrices, default=1
+
+            **kwargs: other keyword-arguments
+        """
         super().__init__()
 
         self.save_hyperparameters()
@@ -266,7 +387,9 @@ class LitLSTMCRFNERTagger(pl.LightningModule):
     def _init_cm_train(
         self,
     ) -> None:
-        """Initialize confusion matrix for training labels."""
+        """Initialize confusion matrix for training labels
+        decoded using argmax and viterbi decoding.
+        """
         self.cm_argmax_train: np.ndarray = np.zeros(
             (self.hparams.num_classes, self.hparams.num_classes), dtype=np.int
         )
@@ -277,7 +400,9 @@ class LitLSTMCRFNERTagger(pl.LightningModule):
     def _init_cm_val(
         self,
     ) -> None:
-        """Initialize confusion matrix for validation labels."""
+        """Initialize confusion matrix for validation labels
+        decoded using argmax and viterbi decoding.
+        """
         self.cm_argmax_val: np.ndarray = np.zeros(
             (self.hparams.num_classes, self.hparams.num_classes), dtype=np.int
         )
@@ -297,7 +422,7 @@ class LitLSTMCRFNERTagger(pl.LightningModule):
     def on_train_epoch_end(
         self,
     ):
-        """Hook after training epoch end."""
+        """Hook after called after end of every training epoch."""
         if (
             self.current_epoch == 0
             or (self.current_epoch + 1)
@@ -321,7 +446,7 @@ class LitLSTMCRFNERTagger(pl.LightningModule):
         self._init_cm_train()
 
     def validation_epoch_end(self, val_step_end_outputs: torch.FloatTensor):
-        """Hook after validation epoch end."""
+        """Hook after called after end of every validation epoch."""
         if (
             self.current_epoch == 0
             or (self.current_epoch + 1)
@@ -344,7 +469,30 @@ class LitLSTMCRFNERTagger(pl.LightningModule):
             )
         self._init_cm_val()
 
-    def training_step(self, batch, batch_idx: int) -> float:
+    def training_step(
+        self,
+        batch: Tuple[
+            Tuple[torch.LongTensor, torch.LongTensor],
+            Optional[List[Tuple[str, str, int, int, str]]],
+        ],
+        batch_idx: int,
+    ) -> torch.FloatTensor:
+        """Training step for LitLSTMNERTagger.
+
+        Args:
+            batch: tuple (X, Y, Optional(meta))
+                X: tensor of shape (batch_size, seq_length)
+                Y: tensor of shape (batch_size, seq_length)
+                meta: list of length=batch_size with each entry
+                    as a list of length=seq_length with each entry as
+                    as a tuple of (str, str, int, int, str), optional
+
+            batch_idx: current batch index
+
+        Returns:
+            A scalar weighted average of cross-entropy loss and
+                CRF conditional negative log-likelihoodloss between X and Y
+        """
         X, Y, _ = batch
         masks: torch.FloatTensor = None
         if self.hparams.use_masks:
@@ -439,6 +587,22 @@ class LitLSTMCRFNERTagger(pl.LightningModule):
         return total_loss
 
     def validation_step(self, batch, batch_idx: int) -> float:
+        """Validation step for LitLSTMNERTagger.
+
+        Args:
+            batch: tuple (X, Y, Optional(meta))
+                X: tensor of shape (batch_size, seq_length)
+                Y: tensor of shape (batch_size, seq_length)
+                meta: list of length=batch_size with each entry
+                    as a list of length=seq_length with each entry as
+                    as a tuple of (str, str, int, int, str), optional
+
+            batch_idx: current batch index
+
+        Returns:
+            A scalar weighted average of cross-entropy loss and
+                CRF conditional negative log-likelihoodloss between X and Y
+        """
         X, Y, _ = batch
         masks: torch.FloatTensor = None
         if self.hparams.use_masks:

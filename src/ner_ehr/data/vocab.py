@@ -1,4 +1,4 @@
-"""Contain utilities to handle vocab."""
+"""This module definition of TokenEntityVocab."""
 from abc import ABC
 from collections import Counter, defaultdict
 from typing import Counter as typeCounter
@@ -35,7 +35,17 @@ class TokenEntityVocab(ABC):
         to_lower: bool = TO_LOWER,
         ignore_tokens: List[str] = [],
     ):
+        """
+        Args:
+            to_lower: boolean flag, default=False
+                if True, tokens are lowercased before adding into vocab,
+                otherwise not
 
+            ignore_tokens: a list of string tokens used to ignore tokens
+                while saving tokens, by default empty
+
+        TODO: add attributes of this class
+        """
         self.to_lower = to_lower
         self.ignore_tokens = ignore_tokens
 
@@ -66,11 +76,10 @@ class TokenEntityVocab(ABC):
         # stores token document frequency
         self.token_doc_freq: DefaultDict[str, int] = None
 
-        self._setup()
-
     def _setup(
         self,
-    ):
+    ) -> None:
+        """Initialize class instances/variables."""
         self.ignore_tokens = set(
             [self._to_lower(token=token) for token in self.ignore_tokens]
         )
@@ -129,7 +138,7 @@ class TokenEntityVocab(ABC):
     @property
     def token_doc_freq(self) -> Dict[str, int]:
         """Getter for `token_doc_freq`.
-        Maps token to number of documents in which that token is present.
+        Generate document frequency for tokens.
         """
         return {
             token: len(doc_ids)
@@ -164,13 +173,18 @@ class TokenEntityVocab(ABC):
         pass
 
     def _to_lower(self, token: str) -> str:
-        """Lowercase token if specified"""
+        """Lowercase token if specified."""
         if self.to_lower:
             return token.lower()
         return token
 
     def _add_token(self, token: str) -> None:
-        """Helper function to add token and assign it's index."""
+        """Helper function to add token in vocab and assign it's
+        token index.
+
+        Args:
+            token: string
+        """
         self.uniq_tokens.add(token)
         if len(self.uniq_tokens) > self.num_uniq_tokens:
             # new token added
@@ -180,9 +194,14 @@ class TokenEntityVocab(ABC):
             self.num_uniq_tokens += 1
 
     def _add_entities(self, entities: Set[str]) -> None:
-        """Helper function to add entity and assign it's label"""
+        """Helper function to add entity and assign it's entity label.
 
-        # to assign consecutive index to `B-` and `I-` tags belonging to same entities
+        Args:
+            entities: list of string entities.
+        """
+
+        # sort entities to assign consecutive indexes to `B-` and `I-` tags
+        #   of entities
         entities = sorted(
             [
                 entity
@@ -201,9 +220,12 @@ class TokenEntityVocab(ABC):
             self._label_to_entity.update({label: entity})
 
     def fit(self, annotatedtuples: List[AnnotationTuple]) -> None:
-        """Generate vocab, token to idx mapping,
-            token to entity (with entity count) mapping,
-            token to document mapping from list of annotated tokens.
+        """Generate vocab, token_entity_freq, token_to_idx,
+            token_to_entity, entity_to_label, label_to_entity mappings
+            from list of annotated tokens.
+
+        Note: every time fit is called, class instances/variables
+            are initialized.
 
         Args:
             annotatedtuples: list of AnnotatedToken tuples
@@ -220,7 +242,11 @@ class TokenEntityVocab(ABC):
                         start_idx=10,
                         end_idx=14,
                         entity='O'),
+                    ...
                 ]
+
+        Returns:
+            None
         """
         self._setup()
         entities: Set[str] = set()
@@ -241,18 +267,17 @@ class TokenEntityVocab(ABC):
         self._add_entities(entities=entities)
 
     def token_to_idx(self, tokens: Union[str, List[str]]) -> List[int]:
-        """Convert list of string tokens into list of integer (index) tokens.
+        """Map given string or list of string tokens into
+            list of associated integer token indexes.
 
-        Note: indexes for unkown tokens(token not in vocab)
+        Note: indexes for unknown tokens(token not in vocab)
             are replaced by `unkown` token index.
 
         Args:
-            tokens: list of string tokens
-                ["Admission", "data"]
+            tokens: str or list of string tokens
 
         Returns:
-            idxs: list of integer (index) token
-                [2, 3]
+            idxs: list of associated integer token indexes
         """
         if isinstance(tokens, str):
             tokens = [tokens]
@@ -262,18 +287,17 @@ class TokenEntityVocab(ABC):
         ]
 
     def idx_to_token(self, idxs: Union[int, List[int]]) -> List[str]:
-        """Convert list of integer (index) tokens into list of string tokens.
+        """Map given integer or list of integer token indexes into
+            list of associated string tokens.
 
         Note: indexes for unknown tokens(token not in vocab)
             are replaced by `unknown` token index.
 
         Args:
-            idxs: list of integer (index) tokens
-                [2, 3]
+            idxs: integer or list of integer token indexes
 
         Returns:
-            tokens: list of string tokens
-                ["Admission", "data"]
+            tokens: list of associated string tokens
         """
         if isinstance(idxs, int):
             idxs = [idxs]
@@ -281,32 +305,29 @@ class TokenEntityVocab(ABC):
         return [self._idx_to_token[idx] for idx in idxs]
 
     def entity_to_label(self, entities: Union[str, List[str]]) -> List[int]:
-        """Convert list of string entities into list of integer (label) entities.
+        """Map given string or list of string entities into
+            list of associated integer entity labels.
 
         Args:
-            entities: list of string entities
-                ["B-Frequency", "I-Frequency"]
+            entities: string or list of string entities
 
         Returns:
-            labels: list of integer (label) entities
-                [2, 3]
+            labels: list of associated integer entity labels
         """
         if isinstance(entities, str):
             entities = [entities]
-
         validate_list(entities, str)
         return [self._entity_to_label[entity] for entity in entities]
 
     def label_to_entity(self, labels: Union[int, List[int]]) -> List[str]:
-        """Convert list of integer (label) entities into list of string entities.
+        """Map given integer or list of integer entity labels into
+            list of associated string entity labels.
 
         Args:
-            labels: list of integer (label) entities
-                [2, 3]
+            entities: integer or list of integer entity labels
 
         Returns:
-            entities: list of string entities
-                ["B-Frequency", "I-Frequency"]
+            labels: list of associated integer entity labels
         """
         if isinstance(labels, int):
             labels = [labels]
@@ -316,10 +337,11 @@ class TokenEntityVocab(ABC):
     def annotation_to_longannotation(
         self, annotatedtuple: AnnotationTuple
     ) -> LongAnnotationTuple:
-        """Convert AnnotationTuple to LongAnnotationTuple.
+        """Convert AnnotationTuple to LongAnnotationTuple
+            by mapping token index and entity label.
 
         Args:
-            annotatedtuple: An annotation tuple
+            annotatedtuple: An annotated tuple
                 Ex: Annotation(
                         doc_id='100035',
                         token='Admission',

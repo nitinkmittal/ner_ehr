@@ -1,8 +1,11 @@
+"""This module provide CLI option to generate annotated and unannotated tokens
+    from EHR annotations and EHR text-file respectively."""
 import argparse
 import glob
 import os
 import warnings
 from pathlib import Path
+from time import time
 from typing import List, Union
 
 import numpy as np
@@ -14,7 +17,7 @@ from ner_ehr.tokenizers import (
     SplitTokenizer,
     Tokenizer,
 )
-from ner_ehr.utils import save_kwargs
+from ner_ehr.utils import save_kwargs, time_func
 from tqdm import tqdm
 
 from custom_parsers import CustomAnnotationParser, CustomTokenParser
@@ -28,16 +31,17 @@ DEFAULT_PROCESSED_DATA_DIR_VAL: Union[Path, str] = os.path.join(
 DEFAULT_PROCESSED_DATA_DIR_TEST: Union[Path, str] = os.path.join(
     os.getcwd(), "processed", "test"
 )
-
-AVAILABLE_TOKENIZERS: List[str] = ["SPLIT", "NLTK", "SCISPACY"]
-DEFAULT_TOKENIZER: str = "NLTK"
+AVAILABLE_TOKENIZERS: List[str] = ["split", "nltk", "scispacy"]
+DEFAULT_TOKENIZER: str = "nltk"
 DEFAULT_SEP_FOR_SPLIT_TOKENIZER: str = " "
 DEFAULT_VALIDATE_TOKEN_IDXS: str = "Y"
 DEFAULT_VAL_SPLIT: float = 0.1
 DEFAULT_RANDOM_SEED: int = 42
 DEFAULT_SAVE_PARSER_ARGS: str = "Y"
 DEFAULT_PARSER_ARGS_SAVE_FP: Union[Path, str] = os.path.join(
-    os.getcwd(), f"{os.path.basename(__file__).split('.')[0]}_parser_args.yaml"
+    os.getcwd(),
+    f"{os.path.basename(__file__).split('.')[0]}_{int(time())}"
+    "_parser_args.yaml",
 )
 
 
@@ -48,20 +52,20 @@ def parse_arguments():
     parser.add_argument(
         "input_train_data_dir",
         type=str,
-        help=("directory with training EHR txt and ann files"),
+        help=("directory with training EHR text and annotation files"),
     )
 
     parser.add_argument(
         "input_test_data_dir",
         type=str,
-        help=("directory with testing EHR txt and ann files"),
+        help=("directory with testing EHR text and annotation files"),
     )
 
     parser.add_argument(
         "--val_split",
         type=float,
         help=(
-            "directory to store processed training tokens, "
+            "validation split (from training data), "
             f"default: {DEFAULT_VAL_SPLIT}"
         ),
         default=DEFAULT_VAL_SPLIT,
@@ -81,7 +85,7 @@ def parse_arguments():
         "--processed_data_dir_val",
         type=str,
         help=(
-            "directory to store processed val tokens, "
+            "directory to store processed validation tokens, "
             f"default: {DEFAULT_PROCESSED_DATA_DIR_VAL} "
         ),
         default=DEFAULT_PROCESSED_DATA_DIR_VAL,
@@ -102,7 +106,8 @@ def parse_arguments():
         type=str,
         help=(
             "tokenizer to generate tokens, "
-            f"available tokenizers: [{', '.join(AVAILABLE_TOKENIZERS)}]"
+            f"available tokenizers: [{', '.join(AVAILABLE_TOKENIZERS)}], "
+            f"default tokenizer: {DEFAULT_TOKENIZER}"
         ),
         default=DEFAULT_TOKENIZER,
     )
@@ -111,8 +116,8 @@ def parse_arguments():
         "--sep",
         type=str,
         help=(
-            "separator used only by split tokenizer, "
-            f"default: {DEFAULT_SEP_FOR_SPLIT_TOKENIZER}"
+            "separator for split tokenizer if used, "
+            f"default: `{DEFAULT_SEP_FOR_SPLIT_TOKENIZER}`"
         ),
         default=DEFAULT_SEP_FOR_SPLIT_TOKENIZER,
     )
@@ -121,7 +126,8 @@ def parse_arguments():
         "--validate_token_idxs",
         type=str,
         help=(
-            "should validate token character indexes (sanity check) or not "
+            "should validate token start and end character indexes "
+            " (sanity check) or not "
             f"(Y/N), default: {DEFAULT_VALIDATE_TOKEN_IDXS}"
         ),
         default=DEFAULT_VALIDATE_TOKEN_IDXS,
@@ -151,6 +157,7 @@ def parse_arguments():
         type=str,
         help=(
             "filepath to save parser arguments, "
+            "used if `save_parser_args` is set as `Y`, "
             f"default: {DEFAULT_PARSER_ARGS_SAVE_FP}"
         ),
         default=DEFAULT_PARSER_ARGS_SAVE_FP,
@@ -160,59 +167,85 @@ def parse_arguments():
     return arguments
 
 
+@time_func
 def main():
     args = parse_arguments()
 
     if args.save_parser_args == "Y":
+        # saving parser arguments
         save_kwargs(fp=args.parser_args_save_fp, **args.__dict__)
 
+    # initializing tokenizer
     validate_token_idxs = True if args.validate_token_idxs == "Y" else False
-    if args.tokenizer == "NLTK":
+    if args.tokenizer == "nltk":
         tokenizer = NLTKTokenizer(validate_token_idxs=validate_token_idxs)
-    elif args.tokenizer == "SPLIT":
+    elif args.tokenizer == "split":
         tokenizer = SplitTokenizer(
             sep=args.sep, validate_token_idxs=validate_token_idxs
         )
-    elif args.tokenizer == "SCISPACY":
+    elif args.tokenizer == "scispacy":
         tokenizer = ScispacyTokenizer(validate_token_idxs=validate_token_idxs)
     else:
         warnings.warn(
-            f"{args.tokenizer} tokenizer not implemented, "
-            f"using default {DEFAULT_TOKENIZER} tokenizer"
+            f"`{args.tokenizer}` tokenizer not implemented, "
+            f"using default `{DEFAULT_TOKENIZER}` tokenizer"
         )
         tokenizer = NLTKTokenizer(validate_token_idxs=validate_token_idxs)
 
-    os.makedirs(args.processed_data_dir_train, exist_ok=True)
-    os.makedirs(args.processed_data_dir_val, exist_ok=True)
-    os.makedirs(args.processed_data_dir_test, exist_ok=True)
+    # appending type of tokenizer to names of processed data dirs
+    if args.tokenizer in AVAILABLE_TOKENIZERS:
+        processed_data_dir_append = f"_{args.tokenizer}"
+    else:
+        processed_data_dir_append = f"_{DEFAULT_TOKENIZER}"
 
+    # creating directories to store train, val and test data resp.
+    # helps to identify type of tokenizer used
+    processed_data_dir_train = (
+        args.processed_data_dir_train + processed_data_dir_append
+    )
+    os.makedirs(
+        processed_data_dir_train,
+        exist_ok=True,
+    )
+    processed_data_dir_val = (
+        args.processed_data_dir_val + processed_data_dir_append
+    )
+    os.makedirs(processed_data_dir_val, exist_ok=True)
+    processed_data_dir_test = (
+        args.processed_data_dir_test + processed_data_dir_append
+    )
+    os.makedirs(processed_data_dir_test, exist_ok=True)
+
+    # getting all EHR text-files
     record_fps = glob.glob(os.path.join(args.input_train_data_dir, "*.txt"))
+
+    # getting number of train and validation EHR text-files
     rng = np.random.default_rng(args.random_seed)
     rng.shuffle(record_fps)
     num_train_record_fps = int((1 - args.val_split) * len(record_fps))
 
-    # generating annotated tokens from train records
+    # generating tokens from train records
     train_record_fps = record_fps[:num_train_record_fps]
     build_processed_data(
         tokenizer=tokenizer,
         record_fps=train_record_fps,
-        save_dir=args.processed_data_dir_train,
+        save_dir=processed_data_dir_train,
     )
-    # generating annotated tokens from val records
+    # generating tokens from val records
     val_record_fps = record_fps[num_train_record_fps:]
     build_processed_data(
         tokenizer=tokenizer,
         record_fps=val_record_fps,
-        save_dir=args.processed_data_dir_val,
+        save_dir=processed_data_dir_val,
     )
-    # generating annotated tokens from test records
+    # generating tokens from test records
     test_record_fps = glob.glob(
         os.path.join(args.input_test_data_dir, "*.txt")
     )
     build_processed_data(
         tokenizer=tokenizer,
         record_fps=test_record_fps,
-        save_dir=args.processed_data_dir_test,
+        save_dir=processed_data_dir_test,
     )
 
 
@@ -220,8 +253,20 @@ def build_processed_data(
     tokenizer: Tokenizer,
     record_fps: Union[Path, str],
     save_dir: Union[Path, str],
-):
-    """Utility function to generate tokens from given EHR records."""
+) -> None:
+    """Utility function to generate unannotated and annotated tokens
+    from given EHR text-files/records and corresponding EHR annotations
+    and saving into CSVs.
+
+    Args:
+        tokenizer: initialized ner_utils.tokenizer.Tokenizer object
+
+        record_fps: list of filepaths to EHR records/text-files
+
+        save_dir: dir to dump/save annotated tuples
+            if annotation are not available for tokens,
+            then `O` (outside) entity is added by default for such tokens
+    """
     annotation_parser = CustomAnnotationParser(tokenizer=tokenizer)
     token_parser = CustomTokenParser(tokenizer=tokenizer)
     ehr = EHR()
@@ -231,25 +276,23 @@ def build_processed_data(
         leave=False,
         position=0,
     ):
-
         dir: Path = os.path.dirname(record_fp)  # record directory
         fp: str = os.path.basename(record_fp).split(".")[0]  # record filename
-        processed_record_fp: Path = os.path.join(
-            save_dir, fp
-        )  # processed record filepath
-        annotations_fp: Path = os.path.join(
-            dir, f"{fp}.ann"
-        )  # annotation filepath
 
+        # annotation filepath
+        annotations_fp: Path = os.path.join(dir, f"{fp}.ann")
         # generating annotations
         annotations: List[AnnotationTuple] = annotation_parser.parse(
             annotations_fp=annotations_fp, record_fp=record_fp
         )
 
-        # generating annotated tokens
+        # generating tokens
         tokens: List[TokenTuple] = token_parser.parse(
             record_fp=record_fp, annotations=annotations
         )
+
+        # processed record filepath
+        processed_record_fp: Path = os.path.join(save_dir, fp)
 
         # saving as CSVs
         ehr.write_csv_tokens_with_annotations(

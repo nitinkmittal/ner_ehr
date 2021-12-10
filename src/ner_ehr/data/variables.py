@@ -1,11 +1,12 @@
-"""Contain definitions for entities: tokens and annotations."""
+"""This module contain definitions for variables
+    used throughout this package: Token, Annotation, LongAnnotation."""
 from abc import ABC
 from collections import namedtuple
 from typing import NamedTuple
 
 
 class Variable(ABC):
-    """Base variable."""
+    """Base class for variable."""
 
     def __init__(
         self, doc_id: str, token: str, start_idx: int, end_idx: int, **kwargs
@@ -79,6 +80,17 @@ class Token(Variable):
     """Definition of a token."""
 
     def __init__(self, doc_id: str, token: str, start_idx: int, end_idx: int):
+        """
+        Args:
+            doc_id: unique identifier for document/sample from which
+                variable is generated
+
+            token: value of the variable
+
+            start_idx: index of first character of token picked from text
+
+            end_idx: index of last character of token picked from text
+        """
         super().__init__(
             doc_id=doc_id,
             token=token,
@@ -111,6 +123,19 @@ class Annotation(Variable):
         end_idx: int,
         entity: str,
     ):
+        """
+        Args:
+            doc_id: unique identifier for document/sample from which
+                variable is generated
+
+            token: value of the variable
+
+            start_idx: index of first character of token picked from text
+
+            end_idx: index of last character of token picked from text
+
+            entity: entity associated with token
+        """
         super().__init__(
             doc_id=doc_id,
             token=token,
@@ -163,6 +188,23 @@ class LongAnnotation(Annotation):
         token_idx: int,
         entity_label: int,
     ):
+        """
+        Args:
+            doc_id: unique identifier for document/sample from which
+                variable is generated
+
+            token: value of the variable
+
+            start_idx: index of first character of token picked from text
+
+            end_idx: index of last character of token picked from text
+
+            entity: entity associated with token
+
+            token_idx: index associated with token
+
+            entity_label: label associated with entity
+        """
         super().__init__(
             doc_id=doc_id,
             token=token,

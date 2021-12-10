@@ -12,7 +12,7 @@ from ner_ehr.data.embeddings import GloveEmbeddings, PubMedicalEmbeddings
 from ner_ehr.data.vocab import TokenEntityVocab
 from ner_ehr.training.datasets import EHRBatchCollator, EHRDataModule
 from ner_ehr.training.pl_models import LitLSTMCRFNERTagger, LitLSTMNERTagger
-from ner_ehr.utils import read_annotatedtuples, save_np
+from ner_ehr.utils import read_annotatedtuples, save_np, time_func
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import CSVLogger
@@ -45,7 +45,7 @@ DEFAULT_NUM_WORKERS_VAL: int = max(
 DEAULT_HIDDEN_SIZE: int = 64
 DEFAULT_BiLSTM: str = "N"
 DEFAULT_NUM_LSTM_LAYERS: int = 1
-DEFAULT_LSTM_DROPOUT: float = 0.1
+DEFAULT_LSTM_DROPOUT: float = 0.0
 DEFAULT_CRF: str = "N"
 DEFAULT_MASKS: str = "N"
 DEFAULT_LR: float = 0.001
@@ -401,11 +401,30 @@ def load_and_save_pre_trained_embed(
     vocab: TokenEntityVocab,
     save_embed_weights_fp: Union[Path, str],
 ) -> None:
-    """To load given pre-trained embeddings in `gensim.models.keyvectors`
+    """Load and save given pre-trained embeddings in `gensim.models.keyvectors`
         format and save embeddings vectors for tokens in given vocab.
 
     Note: loading pre-trained embeddings in `gensim.models.keyvectors`
         format is an expensive operation.
+
+    Args:
+        load_embed_fp: file-path to load pre-trained embeddings
+
+        embed_type: type of pre-trained embeddings,
+            support available for `glove` and `pubmed`
+
+        unknown_token_embedding: A 2-D NumPy array of shape (embedding_dim, )
+            embedding vector to be used for tokens not present
+            in pre-trained embeddings vocab. Dimension of
+            unknown embedding vector should be equal to
+            dimension of pre-trained embedding vectors
+
+        vocab: pre-trained ner_data.vocab.TokenEntityVocab object
+
+        save_embed_weights_fp: file-path to pre-trained embeddings weights
+
+    Returns:
+        None
     """
     logger.info(
         f"Loading pre-trained `{embed_type}` embeddings "
@@ -427,9 +446,11 @@ def load_and_save_pre_trained_embed(
 
     embed.load_word2vec()
 
+    # initializing embedding matrix
     embed_weights = np.zeros(
         (vocab.num_uniq_tokens, len(unknown_token_embedding)), dtype=np.float32
     )
+    # loading embeddings for tokens in vocab
     for token, idx in tqdm(
         vocab._token_to_idx.items(), leave=False, position=0
     ):
@@ -439,6 +460,7 @@ def load_and_save_pre_trained_embed(
     save_np(arr=embed_weights, fp=save_embed_weights_fp)
 
 
+@time_func
 def run_model(
     dir_train: Union[str, Path],
     dir_val: Union[str, Path],
@@ -468,9 +490,109 @@ def run_model(
     log_dir: int,
     random_seed: int,
     parser_args: Dict[str, Any],
-):
+) -> None:
     """Function to load train annotatedtuples, build vocab,
-    load embeddings(if required), train and validate model."""
+    load embeddings(if required), train and validate model.
+
+    Args:
+        dir_train: directory containing CSVs with training
+            annotated/unannotated tokens,
+            if annotated, CSVs should have following columns:
+                [`doc_id`, `token`, `start_idx`, `end_idx`, `entity`]
+            if unannotated, CSVs should have following columns:
+                [`doc_id`, `token`, `start_idx`, `end_idx`]
+            Usually annotated tokens are provided for training
+
+        dir_val: directory containing CSVs with validation
+            annotated/unannotated tokens,
+            if annotated, CSVs should have following columns:
+                [`doc_id`, `token`, `start_idx`, `end_idx`, `entity`]
+            if unannotated, CSVs should have following columns:
+                [`doc_id`, `token`, `start_idx`, `end_idx`]
+            Usually annotated tokens are provided for validation
+
+        to_lower: boolean flag, default=False
+                if True, tokens are lowercased before adding into vocab,
+                otherwise not
+
+        seq_length: maximum number of tokens in a sequence
+
+        embed_dim: embedding dimension
+
+        pre_trained_embed_type: optional, type of pre-trained embeddings,
+            support available for `glove` and `pubmed`
+
+        load_pre_trained_embed_fp: optional, file-path to load pre-trained
+            embeddings
+
+        save_pre_trained_embed_weights_fp: file-path to save pre-trained for
+            vocab generated from training data
+
+        batch_size_train: number of sequences of annotated
+            tokens in a training batch
+
+        batch_size_val: number of sequences of annotated
+            tokens in a training batch
+
+        num_workers_train: how many subprocesses to use for train
+            data loading. 0 means that the data will be loaded in
+            the main process
+
+        num_workers_val: how many subprocesses to use for validation
+            data loading. 0 means that the data will be loaded in
+            the main process
+
+        hidden_size: number of hidden units in LSTM layer
+
+        bidirectional: If True, becomes a bidirectional LSTM
+
+        num_lstm_layers: number of recurrent layers
+            E.g., setting num_layers=2 would mean stacking two LSTMs
+            together to form a stacked LSTM, with the second LSTM
+            taking in outputs of the first LSTM and
+            computing the final results
+
+        lstm_dropout: if non-zero, introduces a dropout layer
+            on the outputs of each LSTM layer except the last layer,
+            with dropout probability equal to dropout
+
+        crf: if True, LSTM with CRF is used, i.e
+            weighted average of CRF negative log-likelihood and
+            cross-entropy loss is used as loss metric
+
+        masks: if True, masks are used in LSTM + CRF model, otherwise not.
+            masks can be used to ignore particular entity labels
+
+        ce_weight: scalar float value multiplied with cross-entropy loss
+
+        crf_nllh_weight: scalar float value multiplied with
+            CRF negative log-likelihood
+
+        lr: learning rate
+
+        epochs: number of training epochs
+
+        save_cm_after_every_n_epochs: interval of epochs before saving
+            training and validation confusion matrices
+
+        monitor: monitor criteria to save model checkpoint,
+            available criterias when using CRF with LSTM: [`val_loss`,
+                `val_ce_loss`, `val_crf_nllh`,
+                `val_argmax_acc`, `val_viterbi_acc`]
+            available criterias when not using CRF with LSTM: [`val_loss`,
+                `val_argmax_acc`]
+
+        mode: monitor minimum or maximum of monitor criteria
+
+        log_dir: logging directory
+
+        random_seed: random seed for reproducibility
+
+        parser_args: parser arguments
+
+    Returns:
+        None
+    """
     # seeding for reproducibility
     pl.utilities.seed.seed_everything(random_seed)
 

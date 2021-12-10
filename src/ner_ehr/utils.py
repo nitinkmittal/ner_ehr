@@ -1,8 +1,9 @@
-"""Contain general utility functions"""
+"""This module contains general utility functions for this package."""
 import os
 from glob import glob
 from pathlib import Path
-from typing import Callable, List, Union
+from time import time
+from typing import Any, Callable, List, Union
 
 import numpy as np
 import yaml
@@ -80,3 +81,15 @@ def read_annotatedtuples(dir: Union[str, Path]) -> List[AnnotationTuple]:
         )
 
     return annotatedtuples
+
+
+def time_func(func: Callable[[Any], Any]):
+    """Wrapper to time given function."""
+
+    def wrapper(*args, **kwargs):
+        start = time()
+        output = func(*args, **kwargs)
+        print(f"{func.__name__} took {time()-start:.5f} seconds")
+        return output
+
+    return wrapper

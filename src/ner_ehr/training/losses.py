@@ -1,7 +1,10 @@
-from torch import Tensor, nn
+import torch
+from torch import nn
 
 
-def cross_entropy(Y_hat: Tensor, Y: Tensor, **kwargs):
+def cross_entropy(
+    Y_hat: torch.FloatTensor, Y: torch.LongTensor, **kwargs
+) -> torch.FloatTensor:
     """
     Compute cross-entropy loss between input (Y_hat) and target (Y) tensors.
 
@@ -15,6 +18,9 @@ def cross_entropy(Y_hat: Tensor, Y: Tensor, **kwargs):
         **kwargs: keyword arguments other than `input` and `target`
             for torch.nn.functional.cross_entropy
             https://github.com/pytorch/pytorch/blob/master/torch/nn/functional.py
+
+    Returns:
+        Scalar cross-entropy loss between Y_hat and Y
     """
     Y_hat = Y_hat.view(
         -1, Y_hat.shape[-1]
