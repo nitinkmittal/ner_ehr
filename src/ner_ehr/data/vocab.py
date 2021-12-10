@@ -43,6 +43,8 @@ class TokenEntityVocab(ABC):
 
             ignore_tokens: a list of string tokens used to ignore tokens
                 while saving tokens, by default empty
+
+        TODO: add attributes of this class
         """
         self.to_lower = to_lower
         self.ignore_tokens = ignore_tokens

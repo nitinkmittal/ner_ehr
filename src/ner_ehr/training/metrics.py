@@ -1,3 +1,4 @@
+"""This module contains evaluation metrics."""
 from typing import Optional, Tuple
 
 import numpy as np
@@ -22,7 +23,40 @@ def _prepare_true_pred(
     transitions: torch.FloatTensor = TRANSITIONS,
     masks: Optional[torch.BoolTensor] = MASKS,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Helper function to decode predicted sequence as per given method."""
+    """Decode predicted sequence as per given decode mode.
+
+    Args:
+        Y_hat: tensor of shape (batch_size, seq_length, num_classes)
+            contains unnormalized scores across classes
+
+        Y: tensor of shape (batch_size, num_classes)
+
+        decode_mode: decoding mode, available modes: [`argmax`, `viterbi`],
+            default=`argmax`
+
+        start_transitions: tensor of shape (num_classes, )
+            default=None, required when decode_mode=`viterbi`
+
+        end_transitions: tensor of shape (num_classes, )
+            default=None, required when decode_mode=`viterbi`
+
+        transitions: tensor of shape (num_classes, num_classes)
+            default=None, required when decode_mode=`viterbi`
+
+        masks: tensor of shape (batch_size, seq_length)
+            default=None, required when decode_mode=`viterbi`
+            but can be optional for viterbi decoding
+
+    Returns:
+        A tuple of (true, predicted, labels)
+            true: 1-D NumPy array of shape (batch_size*seq_length, )
+                containing true/gold labels
+
+            pred: 1-D NumPy array of shape (batch_size*seq_length, )
+                containing true/gold labels
+
+            labels: 1-D NumPy array of shape (num_classes, )
+    """
     if decode_mode == "argmax":
         pred = argmax_decode(emissions=Y_hat)
     else:
@@ -56,20 +90,33 @@ def accuracy_score(
     end_transitions: torch.FloatTensor = END_TRANSITIONS,
     transitions: torch.FloatTensor = TRANSITIONS,
     masks: Optional[torch.BoolTensor] = MASKS,
-) -> Tuple[float, np.ndarray]:
-    """
+) -> float:
+    """Compute and return accuracy between Y_hat and Y using given decode mode.
+
     Args:
-        Y_hat: (B, S, num_classes)
+        Y_hat: tensor of shape (batch_size, seq_length, num_classes)
+            contains unnormalized scores across classes
 
-        Y: (B, S)
-            B: Batch size
+        Y: tensor of shape (batch_size, num_classes)
 
-            S: seq_length
+        decode_mode: decoding mode, available modes: [`argmax`, `viterbi`],
+            default=`argmax`
 
-            num_classes: number of classes/labels
+        start_transitions: tensor of shape (num_classes, )
+            default=None, required when decode_mode=`viterbi`
+
+        end_transitions: tensor of shape (num_classes, )
+            default=None, required when decode_mode=`viterbi`
+
+        transitions: tensor of shape (num_classes, num_classes)
+            default=None, required when decode_mode=`viterbi`
+
+        masks: tensor of shape (batch_size, seq_length)
+            default=None, required when decode_mode=`viterbi`
+            but can be optional for viterbi decoding
 
     Returns:
-        A Tuple with overall accuracy and array with accuracies per class label
+        A overall scalar accuracy between Y_hat and Y
     """
     y_true, y_pred, _ = _prepare_true_pred(
         Y_hat=Y_hat,
@@ -91,20 +138,35 @@ def accuracy_scores(
     end_transitions: torch.FloatTensor = END_TRANSITIONS,
     transitions: torch.FloatTensor = TRANSITIONS,
     masks: Optional[torch.BoolTensor] = MASKS,
-) -> Tuple[float, np.ndarray]:
-    """
+) -> np.ndarray:
+    """Compute and return accuracies between Y_hat and Y across all classes
+        separately as per given decoding mode.
+
     Args:
-        Y_hat: (B, S, num_classes)
+        Y_hat: tensor of shape (batch_size, seq_length, num_classes)
+            Contains unnormalized scores across classes
 
-        Y: (B, S)
-            B: Batch size
+        Y: tensor of shape (batch_size, num_classes)
 
-            S: seq_length
+        decode_mode: decoding mode, available modes: [`argmax`, `viterbi`],
+            default=`argmax`
 
-            num_classes: number of classes/labels
+        start_transitions: tensor of shape (num_classes, )
+            default=None, required when decode_mode=`viterbi`
+
+        end_transitions: tensor of shape (num_classes, )
+            default=None, required when decode_mode=`viterbi`
+
+        transitions: tensor of shape (num_classes, num_classes)
+            default=None, required when decode_mode=`viterbi`
+
+        masks: tensor of shape (batch_size, seq_length)
+            default=None, required when decode_mode=`viterbi`
+            but can be optional for viterbi decoding
 
     Returns:
-        A Tuple with overall accuracy and array with accuracies per class label
+        A 1-D NumPy array of shape (num_classes, )
+            with accuracies between Y_hat and Y across each class
     """
     y_true, y_pred, labels = _prepare_true_pred(
         Y_hat=Y_hat,
@@ -129,19 +191,35 @@ def confusion_matrix(
     transitions: torch.FloatTensor = TRANSITIONS,
     masks: Optional[torch.BoolTensor] = MASKS,
 ) -> Tuple[float, np.ndarray]:
-    """
+    """Compute and return confusion matrix between Y_hat and Y
+        as per given decoding mode.
+
     Args:
-        Y_hat: (B, S, num_classes)
+        Y_hat: tensor of shape (batch_size, seq_length, num_classes)
+            contains unnormalized scores across classes
 
-        Y: (B, S)
-            B: Batch size
+        Y: tensor of shape (batch_size, num_classes)
 
-            S: seq_length
+        decode_mode: decoding mode, available modes: [`argmax`, `viterbi`],
+            default=`argmax`
 
-            num_classes: number of classes/labels
+        start_transitions: tensor of shape (num_classes, )
+            default=None, required when decode_mode=`viterbi`
+
+        end_transitions: tensor of shape (num_classes, )
+            default=None, required when decode_mode=`viterbi`
+
+        transitions: tensor of shape (num_classes, num_classes)
+            default=None, required when decode_mode=`viterbi`
+
+        masks: tensor of shape (batch_size, seq_length)
+            default=None, required when decode_mode=`viterbi`
+            but can be optional for viterbi decoding
 
     Returns:
-        A Tuple with overall accuracy and array with accuracies per class label
+        A 2-D NumPy array of shape (num_classes, num_classes)
+            containing values of confusion matrix generated between
+            Y_hat and Y
     """
     y_true, y_pred, labels = _prepare_true_pred(
         Y_hat=Y_hat,
@@ -169,19 +247,41 @@ def all_metrics(
     masks: Optional[torch.BoolTensor] = MASKS,
     eps: float = 1e-64,
 ) -> Tuple[float, np.ndarray, np.ndarray]:
-    """
+    """Compute and return overall accuracy, accuracy per class and
+        confusion matrix between Y_hat and Y as per given decoding mode.
+
     Args:
-        Y_hat: (B, S, num_classes)
+        Y_hat: tensor of shape (batch_size, seq_length, num_classes)
+            contains unnormalized scores across classes
 
-        Y: (B, S)
-            B: Batch size
+        Y: tensor of shape (batch_size, num_classes)
 
-            S: seq_length
+        decode_mode: decoding mode, available modes: [`argmax`, `viterbi`],
+            default=`argmax`
 
-            num_classes: number of classes/labels
+        start_transitions: tensor of shape (num_classes, )
+            default=None, required when decode_mode=`viterbi`
+
+        end_transitions: tensor of shape (num_classes, )
+            default=None, required when decode_mode=`viterbi`
+
+        transitions: tensor of shape (num_classes, num_classes)
+            default=None, required when decode_mode=`viterbi`
+
+        masks: tensor of shape (batch_size, seq_length)
+            default=None, required when decode_mode=`viterbi`
+            but can be optional for viterbi decoding
+
+        eps: small float value used for numerical stability
 
     Returns:
-        A Tuple with overall accuracy and array with accuracies per class label
+        A tuple containing (accuracy, accuracies, confusion_matrix)
+            accuracy: overall scalar accuracy between Y_hat and Y
+            accuracies: 1-D NumPy array of shape (num_classes, )
+                with accuracies between Y_hat and Y across each class
+            confusion_matrix: A 2-D NumPy array of
+                shape (num_classes, num_classes) containing values from
+                confusion matrix generated between Y_hat and Y
     """
     y_true, y_pred, labels = _prepare_true_pred(
         Y_hat=Y_hat,

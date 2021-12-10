@@ -1,4 +1,4 @@
-"""Contain general utility functions"""
+"""This module contains general utility functions for this package."""
 import os
 from glob import glob
 from pathlib import Path
