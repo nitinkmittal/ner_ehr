@@ -86,15 +86,15 @@ def parse_arguments():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        "processed_data_dir_train",
+        "tokens_dir_train",
         type=str,
-        help="directory to store processed training tokens",
+        help="directory containing training tokens",
     )
 
     parser.add_argument(
-        "processed_data_dir_val",
+        "tokens_dir_val",
         type=str,
-        help="directory to store processed val tokens ",
+        help="directory containing validation tokens ",
     )
 
     parser.add_argument(
@@ -363,8 +363,8 @@ def main():
 
     logger.info("Initializing environment for model training...")
     run_model(
-        dir_train=args.processed_data_dir_train,
-        dir_val=args.processed_data_dir_val,
+        dir_train=args.tokens_dir_train,
+        dir_val=args.tokens_dir_val,
         to_lower=True if args.to_lower == "Y" else False,
         seq_length=args.seq_len,
         embed_dim=args.embed_dim,

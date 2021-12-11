@@ -64,7 +64,7 @@ class Baseline:
 
 if __name__ == "__main__":
 
-    root_dir = "../processed"
+    root_dir = "../tokens"
 
     # Reading files and creating vocab
     train_annotatedtuples = read_annotatedtuples(

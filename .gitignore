@@ -138,3 +138,6 @@ dmypy.json
 *.yaml
 *.npy
 *.png
+!data/train/100035.*
+!data/train/100039.*
+!data/test/100511.*
