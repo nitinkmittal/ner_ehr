@@ -46,8 +46,9 @@ def load_np(fp: Union[str, Path]) -> np.ndarray:
 
 
 def save_kwargs(fp: Union[str, Path], **kwargs) -> None:
+    """Save keyword-arguments in a YAML file."""
     with open(fp, "w") as f:
-        yaml.dump(kwargs, f)
+        yaml.dump(kwargs, f, sort_keys=False)
 
 
 def read_annotatedtuples(dir: Union[str, Path]) -> List[AnnotationTuple]:
