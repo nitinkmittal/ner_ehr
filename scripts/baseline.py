@@ -2,12 +2,22 @@ import os
 from typing import List
 
 import numpy as np
+import pandas as pd
 from ner_ehr.data import Constants
 from ner_ehr.data.variables import AnnotationTuple
 from ner_ehr.data.vocab import TokenEntityVocab
 from ner_ehr.utils import read_annotatedtuples
 from sklearn.metrics import classification_report
 from tqdm import tqdm
+
+"""
+This file creates a baseline model based on dictionary and stores the labels in 2 files: test_true.csv and test_pred.csv
+python baseline.py
+
+To see the performance of dictionary based model. run
+python evaluate.py 
+(default params are given for the dictionary based model)
+"""
 
 
 class Baseline:
@@ -37,36 +47,19 @@ class Baseline:
         for row in tqdm(dataset, leave=False, position=0):
             token = self.vocab._to_lower(row.token)
             pred_entity = self.vocab.token_entity_freq[token]
+
             if len(pred_entity) == 0:
-                y_pred.append(Constants.UNTAG_ENTITY_LABEL.value)
+                y_pred.append((token, Constants.UNTAG_ENTITY_LABEL.value))
             else:
-                y_pred.append(
+                y_pred.append((token,
                     sorted(
                         pred_entity.items(), key=lambda x: x[1], reverse=True
-                    )[0][0]
+                    )[0][0])
                 )
 
-            y_gold.append(row.entity)
+            y_gold.append((token, row.entity))
 
         return y_gold, y_pred
-
-    def evaluate(self, pred_labels: List, gold_labels: List) -> dict:
-        """
-        Given true and predicted labels, calculates the performance metrics
-
-        Args:
-            pred_labels: list of predicted tags
-            gold_labels: list of actual tags
-        Returns:
-            score: report of all metrics like precision,
-            recall, f1-score, micro_average and macro_average
-            for all entity classes
-        """
-
-        score = classification_report(
-            gold_labels, pred_labels, labels=np.unique(gold_labels)
-        )
-        return score
 
 
 if __name__ == "__main__":
@@ -90,10 +83,16 @@ if __name__ == "__main__":
     baseline = Baseline(vocab=vocab)
 
     # Performance on val and test data
-    val_gold, val_pred = baseline.fit(val_annotatedtuples)
-    score_valid = baseline.evaluate(val_gold, val_pred)
-    print(f"Validation metrics: {score_valid}")
+    #val_gold, val_pred = baseline.fit(val_annotatedtuples)
+    #score_valid = baseline.evaluate(val_gold, val_pred)
+    #print(f"Validation metrics: {score_valid}")s
 
     test_gold, test_pred = baseline.fit(test_annotatedtuples)
-    score_test = baseline.evaluate(test_gold, test_pred)
-    print(f"Test metrics: {score_test}")
+    gold_df = pd.DataFrame(test_gold, columns =['token', 'entity'])
+    pred_df = pd.DataFrame(test_pred, columns =['token', 'argmax_entity'])
+
+    gold_df.to_csv("test_true.csv", index=False)
+    pred_df.to_csv("test_pred.csv", index=False)
+    print("Predictions saved. Please run : python evaluate.py to see the result.")
+
+
