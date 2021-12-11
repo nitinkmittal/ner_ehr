@@ -1,3 +1,5 @@
+
+```bash
 usage: run_build_data.py [-h] [--val_split VAL_SPLIT] [--processed_data_dir_train PROCESSED_DATA_DIR_TRAIN] [--processed_data_dir_val PROCESSED_DATA_DIR_VAL]
                          [--processed_data_dir_test PROCESSED_DATA_DIR_TEST] [--tokenizer TOKENIZER] [--sep SEP] [--validate_token_idxs VALIDATE_TOKEN_IDXS] [--random_seed RANDOM_SEED]
                          [--save_parser_args SAVE_PARSER_ARGS] [--parser_args_save_fp PARSER_ARGS_SAVE_FP]
@@ -29,3 +31,4 @@ optional arguments:
   --parser_args_save_fp PARSER_ARGS_SAVE_FP
                         filepath to save parser arguments, used if `save_parser_args` is set as `Y`, default:
                         /home/mittal.nit/projects/ner_ehr/scripts/run_build_data_1639247685_parser_args.yaml
+```
