@@ -61,14 +61,14 @@ python run_train_lstm.py ../tokens/train_scispacy ../tokens/val_scispacy
 ### To train BiLSTM:
 ```bash
 python run_train_lstm.py ../tokens/train_scispacy ../tokens/val_scispacy \
-  --bilstm Y \
+  --bilstm Y
 ```
 
 ### To train LSTM/BiLSTM with CRF:
 ```bash
 python run_train_lstm.py ../tokens/train_scispacy ../tokens/val_scispacy \
   --bilstm Y \
-  --crf Y \
+  --crf Y
 ```
 
 ### Usage for `run_train_lstm.py`
