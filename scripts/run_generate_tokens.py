@@ -22,14 +22,14 @@ from tqdm import tqdm
 
 from custom_parsers import CustomAnnotationParser, CustomTokenParser
 
-DEFAULT_PROCESSED_DATA_DIR_TRAIN: Union[Path, str] = os.path.join(
-    os.getcwd(), "processed", "train"
+DEFAULT_TOKENS_DATA_DIR_TRAIN: Union[Path, str] = os.path.join(
+    os.getcwd(), "tokens", "train"
 )
-DEFAULT_PROCESSED_DATA_DIR_VAL: Union[Path, str] = os.path.join(
-    os.getcwd(), "processed", "val"
+DEFAULT_TOKENS_DATA_DIR_VAL: Union[Path, str] = os.path.join(
+    os.getcwd(), "tokens", "val"
 )
-DEFAULT_PROCESSED_DATA_DIR_TEST: Union[Path, str] = os.path.join(
-    os.getcwd(), "processed", "test"
+DEFAULT_TOKENS_DATA_DIR_TEST: Union[Path, str] = os.path.join(
+    os.getcwd(), "tokens", "test"
 )
 AVAILABLE_TOKENIZERS: List[str] = ["split", "nltk", "scispacy"]
 DEFAULT_TOKENIZER: str = "nltk"
@@ -50,13 +50,13 @@ def parse_arguments():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        "input_train_data_dir",
+        "train_data_dir",
         type=str,
         help=("directory with training EHR text and annotation files"),
     )
 
     parser.add_argument(
-        "input_test_data_dir",
+        "test_data_dir",
         type=str,
         help=("directory with testing EHR text and annotation files"),
     )
@@ -72,33 +72,33 @@ def parse_arguments():
     )
 
     parser.add_argument(
-        "--processed_data_dir_train",
+        "--tokens_dir_train",
         type=str,
         help=(
-            "directory to store processed training tokens, "
-            f"default: {DEFAULT_PROCESSED_DATA_DIR_TRAIN}"
+            "directory to store training tokens, "
+            f"default: {DEFAULT_TOKENS_DATA_DIR_TRAIN}"
         ),
-        default=DEFAULT_PROCESSED_DATA_DIR_TRAIN,
+        default=DEFAULT_TOKENS_DATA_DIR_TRAIN,
     )
 
     parser.add_argument(
-        "--processed_data_dir_val",
+        "--tokens_dir_val",
         type=str,
         help=(
-            "directory to store processed validation tokens, "
-            f"default: {DEFAULT_PROCESSED_DATA_DIR_VAL} "
+            "directory to store validation tokens, "
+            f"default: {DEFAULT_TOKENS_DATA_DIR_VAL} "
         ),
-        default=DEFAULT_PROCESSED_DATA_DIR_VAL,
+        default=DEFAULT_TOKENS_DATA_DIR_VAL,
     )
 
     parser.add_argument(
-        "--processed_data_dir_test",
+        "--tokens_dir_test",
         type=str,
         help=(
-            "directory to store processed test tokens, "
-            f"default: {DEFAULT_PROCESSED_DATA_DIR_TEST} "
+            "directory to store test tokens, "
+            f"default: {DEFAULT_TOKENS_DATA_DIR_TEST} "
         ),
-        default=DEFAULT_PROCESSED_DATA_DIR_TEST,
+        default=DEFAULT_TOKENS_DATA_DIR_TEST,
     )
 
     parser.add_argument(
@@ -192,32 +192,26 @@ def main():
         )
         tokenizer = NLTKTokenizer(validate_token_idxs=validate_token_idxs)
 
-    # appending type of tokenizer to names of processed data dirs
+    # appending type of tokenizer to names of tokens data dirs
     if args.tokenizer in AVAILABLE_TOKENIZERS:
-        processed_data_dir_append = f"_{args.tokenizer}"
+        tokens_dir_append = f"_{args.tokenizer}"
     else:
-        processed_data_dir_append = f"_{DEFAULT_TOKENIZER}"
+        tokens_dir_append = f"_{DEFAULT_TOKENIZER}"
 
     # creating directories to store train, val and test data resp.
     # helps to identify type of tokenizer used
-    processed_data_dir_train = (
-        args.processed_data_dir_train + processed_data_dir_append
-    )
+    tokens_dir_train = args.tokens_dir_train + tokens_dir_append
     os.makedirs(
-        processed_data_dir_train,
+        tokens_dir_train,
         exist_ok=True,
     )
-    processed_data_dir_val = (
-        args.processed_data_dir_val + processed_data_dir_append
-    )
-    os.makedirs(processed_data_dir_val, exist_ok=True)
-    processed_data_dir_test = (
-        args.processed_data_dir_test + processed_data_dir_append
-    )
-    os.makedirs(processed_data_dir_test, exist_ok=True)
+    tokens_dir_val = args.tokens_dir_val + tokens_dir_append
+    os.makedirs(tokens_dir_val, exist_ok=True)
+    tokens_dir_test = args.tokens_dir_test + tokens_dir_append
+    os.makedirs(tokens_dir_test, exist_ok=True)
 
     # getting all EHR text-files
-    record_fps = glob.glob(os.path.join(args.input_train_data_dir, "*.txt"))
+    record_fps = glob.glob(os.path.join(args.train_data_dir, "*.txt"))
 
     # getting number of train and validation EHR text-files
     rng = np.random.default_rng(args.random_seed)
@@ -226,30 +220,28 @@ def main():
 
     # generating tokens from train records
     train_record_fps = record_fps[:num_train_record_fps]
-    build_processed_data(
+    build_tokens(
         tokenizer=tokenizer,
         record_fps=train_record_fps,
-        save_dir=processed_data_dir_train,
+        save_dir=tokens_dir_train,
     )
     # generating tokens from val records
     val_record_fps = record_fps[num_train_record_fps:]
-    build_processed_data(
+    build_tokens(
         tokenizer=tokenizer,
         record_fps=val_record_fps,
-        save_dir=processed_data_dir_val,
+        save_dir=tokens_dir_val,
     )
     # generating tokens from test records
-    test_record_fps = glob.glob(
-        os.path.join(args.input_test_data_dir, "*.txt")
-    )
-    build_processed_data(
+    test_record_fps = glob.glob(os.path.join(args.test_data_dir, "*.txt"))
+    build_tokens(
         tokenizer=tokenizer,
         record_fps=test_record_fps,
-        save_dir=processed_data_dir_test,
+        save_dir=tokens_dir_test,
     )
 
 
-def build_processed_data(
+def build_tokens(
     tokenizer: Tokenizer,
     record_fps: Union[Path, str],
     save_dir: Union[Path, str],
@@ -291,12 +283,12 @@ def build_processed_data(
             record_fp=record_fp, annotations=annotations
         )
 
-        # processed record filepath
-        processed_record_fp: Path = os.path.join(save_dir, fp)
+        # tokens record filepath
+        tokens_record_fp: Path = os.path.join(save_dir, fp)
 
         # saving as CSVs
         ehr.write_csv_tokens_with_annotations(
-            tokens=tokens, annotations=annotations, fp=processed_record_fp
+            tokens=tokens, annotations=annotations, fp=tokens_record_fp
         )
 
 
