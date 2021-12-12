@@ -3,7 +3,7 @@ import os
 from glob import glob
 from pathlib import Path
 from time import time
-from typing import Any, Callable, List, Union
+from typing import Any, Callable, List, Union, Tuple, NamedTuple
 
 import numpy as np
 import yaml
@@ -11,6 +11,10 @@ import yaml
 from ner_ehr.data.ehr import EHR
 from ner_ehr.data.utils import df_to_namedtuples
 from ner_ehr.data.variables import AnnotationTuple
+
+from ner_ehr.data import Constants
+
+from ner_ehr.data.utils import sort_namedtuples
 
 
 def validate_list(l: List[Union[int, str]], dtype: type):
@@ -76,9 +80,14 @@ def read_annotatedtuples(dir: Union[str, Path]) -> List[AnnotationTuple]:
     """
     annotatedtuples = []
     for fp in glob(os.path.join(dir, r"*.csv")):
+        df = EHR.read_csv_tokens_with_annotations(fp)
+        df = df.drop_duplicates(
+            subset=["doc_id", "token", "start_idx", "end_idx"], keep="last"
+        )
+        df.reset_index(drop=True)
         annotatedtuples += df_to_namedtuples(
             name=AnnotationTuple.__name__,
-            df=EHR.read_csv_tokens_with_annotations(fp),
+            df=df,
         )
 
     return annotatedtuples
@@ -94,3 +103,88 @@ def time_func(func: Callable[[Any], Any]):
         return output
 
     return wrapper
+
+
+def compare_namedtuples(a: NamedTuple, b: NamedTuple, fields: List[str]):
+    """Raise `ValueError` if given field does not match in a and b."""
+    for field in fields:
+        if getattr(a, field) != getattr(b, field):
+            raise ValueError(f"Field `{field}` not matching in {a} and {b}")
+
+
+def aggregrate_true_pred_tokens(
+    true: List[AnnotationTuple], pred: List[AnnotationTuple]
+) -> Tuple[List[AnnotationTuple], List[AnnotationTuple]]:
+    """Combine `IOB` entity tagging."""
+
+    assert len(true) == len(pred)
+    true = sort_namedtuples(true, by=["doc_id", "start_idx"], ascending=True)
+    pred = sort_namedtuples(pred, by=["doc_id", "start_idx"], ascending=True)
+
+    true_agg: List[AnnotationTuple] = []
+    pred_agg: List[AnnotationTuple] = []
+
+    extract_entity = (
+        lambda entity: entity.split("-")[1] if "-" in entity else entity
+    )
+
+    i = 0
+    while i < len(true):
+        t, p = true[i], pred[i]
+        compare_namedtuples(
+            t, p, fields=["doc_id", "token", "start_idx", "end_idx"]
+        )
+        if t.entity == Constants.UNTAG_ENTITY_LABEL.value:
+            t = t._replace(entity=[extract_entity(t.entity)])
+            p = p._replace(entity=[extract_entity(p.entity)])
+        elif "B-" in t.entity:
+            doc_id = t.doc_id
+            token = t.token
+            start_idx = t.start_idx
+            end_idx = t.end_idx
+
+            t_entity = extract_entity(t.entity)
+            p_entity = extract_entity(p.entity)
+            t_entities = [t_entity]
+            p_entities = [p_entity]
+
+            while (
+                i < len(true) - 1
+                and doc_id == true[i + 1].doc_id
+                and f"I-{t_entity}" == true[i + 1].entity
+            ):
+                compare_namedtuples(
+                    true[i + 1],
+                    pred[i + 1],
+                    fields=["doc_id", "token", "start_idx", "end_idx"],
+                )
+                token += " " + true[i + 1].token
+                end_idx = true[i + 1].end_idx
+
+                p_entity = extract_entity(pred[i + 1].entity)
+                p_entities.append(p_entity)
+
+                t_entity = extract_entity(true[i + 1].entity)
+                t_entities.append(t_entity)
+                i += 1
+
+            t = AnnotationTuple(
+                doc_id=doc_id,
+                token=token,
+                start_idx=start_idx,
+                end_idx=end_idx,
+                entity=t_entities,
+            )
+            p = AnnotationTuple(
+                doc_id=doc_id,
+                token=token,
+                start_idx=start_idx,
+                end_idx=end_idx,
+                entity=p_entities,
+            )
+
+        true_agg.append(t)
+        pred_agg.append(p)
+        i += 1
+
+    return true_agg, pred_agg
