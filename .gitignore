@@ -147,5 +147,8 @@ dmypy.json
 !tokens/test_scispacy/100511-tokens-with-annotations.csv
 !logs/ner_ehr_lstm_crf/version_7/test*.csv
 !logs/ner_ehr_lstm/version_2/test*.csv
+!logs/ner_ehr_lstm_crf/version_7/plots/*.png
+!logs/ner_ehr_lstm/version_2/plots/*.png
+
 
 
