@@ -50,19 +50,13 @@ optional arguments:
                         filepath to save parser arguments, used if `save_parser_args` is set as `Y`, default: run_generate_tokens_{current_time}_parser_args.yaml
 ```
 
-## Training rule-based baseline and evaluating
+## Training rule-based baseline
 
-To train rule based model using generated training and validation tokens, use script `baseline.py`. This script will generate two csvs and will save it in the same folder where the script is placed.
+To train rule based model using generated training and validation tokens, use script `baseline.py`. This script will generate two CSVs and will save it in the same folder where the script is placed.
 
 ### To train baseline model:
 ```bash
 python baseline.py
-```
-
-To evaluate any model, use script 'evaluate.py'. Default arguments are set for the baseline model.
-### To evaluate models:
-```bash
-python evaluate.py --goldpath 'csvfile path containing true labels' --predpath 'csvfile path containing predicted labels'
 ```
 
 ## Training LSTMs with and without Conditional Random Field(CRF)
@@ -145,4 +139,12 @@ optional arguments:
   --log_dir LOG_DIR     logging directory, default: /home/mittal.nit/projects/ner_ehr/scripts/logs
   --random_seed RANDOM_SEED
                         random seed for reproducibility, default: 42
+```
+
+## Evaluation 
+To evaluate results from any model, use script `evaluate.py`. Default arguments are set for the baseline model.
+
+## To evaluate models:
+```bash
+python evaluate.py --goldpath 'csvfile path containing true labels' --predpath 'csvfile path containing predicted labels'
 ```
