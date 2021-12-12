@@ -141,3 +141,14 @@ dmypy.json
 !data/train/100035.*
 !data/train/100039.*
 !data/test/100511.*
+!tokens/train_scispacy/100035-tokens-with-annotations.csv
+!tokens/train_scispacy/100039-tokens-with-annotations.csv
+!tokens/val_scispacy/100564-tokens-with-annotations.csv
+!tokens/test_scispacy/100511-tokens-with-annotations.csv
+!logs/ner_ehr_lstm_crf/version_7/test*.csv
+!logs/ner_ehr_lstm/version_2/test*.csv
+!logs/ner_ehr_lstm_crf/version_7/plots/*.png
+!logs/ner_ehr_lstm/version_2/plots/*.png
+
+
+
