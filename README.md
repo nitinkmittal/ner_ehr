@@ -22,4 +22,4 @@ conda activate ner_ehr
 python src/setup.py develop
 ````
 
-## To run scripts to generate tokens from raw Electronic Health Records(EHR) refer [scripts/README.md](https://github.com/nitinkmittal/ner_ehr/tree/master/scripts#readme)
+## To run scripts to generate tokens from raw Electronic Health Records(EHR) and associated annotations and train models refer [scripts/README.md](https://github.com/nitinkmittal/ner_ehr/tree/master/scripts#readme)
