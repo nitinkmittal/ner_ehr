@@ -9,3 +9,5 @@ The [dataset](https://portal.dbmi.hms.harvard.edu/projects/n2c2-nlp/) consists o
 
 ## To run scripts refer [README.md](https://github.com/nitinkmittal/ner_ehr/tree/master/scripts#readme)
 
+## Initial Results
+![BiLSTM + CRF Confusion matrix](https://github.com/nitinkmittal/ner_ehr/blob/master/logs/ner_ehr_lstm_crf/version_7/plots/Confusion%20Matrix%20from%20best%20BiLSTM%20%2B%20CRF%20model%20on%20Test.jpeg)
