@@ -146,5 +146,6 @@ To evaluate results from any model, use script `evaluate.py`. Default arguments 
 
 ## To evaluate models:
 ```bash
-python evaluate.py --goldpath 'csvfile path containing true labels' --predpath 'csvfile path containing predicted labels'
+python evaluate.py --goldpath 'csv file-path containing true labels' --predpath 'csv file-path containing predicted labels'
 ```
+Download sample **test** [gold](https://github.com/nitinkmittal/ner_ehr/blob/master/logs/ner_ehr_lstm_crf/version_7/test_true.csv) and [predicted](https://github.com/nitinkmittal/ner_ehr/blob/master/logs/ner_ehr_lstm_crf/version_7/test_pred.csv) labels
