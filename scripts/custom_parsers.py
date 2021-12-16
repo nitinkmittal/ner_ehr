@@ -60,7 +60,13 @@ def extract_record_id(
 
 class CustomAnnotationParser(AnnotationParser):
     """Parser for generating list of annotated tokens
-    from EHR annotations."""
+    from EHR annotations.
+
+    Note: This parser will not handle entities with multi-entities
+        and will simply remove duplicated annotations
+        by checking/subsetting on [`doc_id`, `start_idx`]
+        and only keep first entries for each annotation.
+    """
 
     @copy_docstring(Tokenizer.__init__)
     def __init__(
@@ -179,9 +185,9 @@ class CustomAnnotationParser(AnnotationParser):
             )
             for i, token in enumerate(tokens):
                 if i == 0:
-                    _entity = f"B-{entity}"
+                    _entity = f"{entity}-B"
                 else:
-                    _entity = f"I-{entity}"
+                    _entity = f"{entity}-I"
 
                 annotation = Annotation(
                     doc_id=token.doc_id,
@@ -202,7 +208,14 @@ class CustomAnnotationParser(AnnotationParser):
 
         # sorting annotated tokens
         return sort_namedtuples(
-            self.annotations, by=["doc_id", "start_idx"], ascending=True
+            self.annotations,
+            by=[
+                "doc_id",
+                "start_idx",
+            ],
+            ascending=True,
+            drop_duplicates=True,
+            keep="first",
         )
 
 
@@ -339,5 +352,9 @@ class CustomTokenParser(TokenParser):
 
         # sorting unannotated tokens
         return sort_namedtuples(
-            self.tokens, by=["doc_id", "start_idx"], ascending=True
+            self.tokens,
+            by=["doc_id", "start_idx"],
+            ascending=True,
+            drop_duplicates=True,
+            keep="first",
         )
