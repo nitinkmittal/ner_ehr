@@ -3,6 +3,7 @@ from typing import List, Union
 
 import pandas as pd
 
+import warnings
 from ner_ehr.data.variables import (
     AnnotationTuple,
     LongAnnotationTuple,
@@ -16,6 +17,8 @@ def sort_namedtuples(
     ],
     by: Union[str, List[str]] = ["doc_id", "start_idx"],
     ascending: bool = True,
+    drop_duplicates: bool = False,
+    keep: str = "first",
 ):
     """Sort list of TokenTuples/AnnotationTuples/LongAnnotationTuples
     by given condition in given order.
@@ -60,6 +63,14 @@ def sort_namedtuples(
             if True, namedtuples are sorted in ascending order on
             given condition other sorted in descending order
 
+        drop_duplicated: boolean flag, default=False
+
+        keep (str): {‘first’, ‘last’, False}, default ‘first’
+            Determines which duplicates (if any) to keep.
+            - first: Drop duplicates except for the first occurrence.
+            - last: Drop duplicates except for the last occurrence.
+            - False: Drop all duplicates.
+
         Returns:
             A list of sorted namedtuples
     """
@@ -75,7 +86,18 @@ def sort_namedtuples(
     for field in by:
         check_field(field=field)
 
-    df = pd.DataFrame(namedtuples).sort_values(by=by, ascending=ascending)
+    df = pd.DataFrame(namedtuples)
+    if not drop_duplicates and df.duplicated(subset=by).sum() > 0:
+        warnings.simplefilter("always", UserWarning)
+        warnings.warn(
+            f"Duplicates found on given sort condition "
+            f"[{', '.join(by)}]. "
+            "May lead to incorrect sorting, please check sorted namedtuples."
+        )
+    else:
+        df = df.drop_duplicates(subset=by, keep=keep).reset_index(drop=True)
+
+    df = df.sort_values(by=by, ascending=ascending)
     return list(df.itertuples(name=type(namedtuples[0]).__name__, index=False))
 
 
