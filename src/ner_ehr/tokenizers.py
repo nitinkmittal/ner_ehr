@@ -148,6 +148,8 @@ class SplitTokenizer(Tokenizer):
         """
 
         def tokenizer(x: str):
+            if not x:
+                return []
             if splitlines:
                 return " ".join(x.splitlines()).split(sep)
             else:
@@ -161,7 +163,7 @@ class SplitTokenizer(Tokenizer):
 
     @copy_docstring(Tokenizer.tokenize)
     def tokenize(self, text: str) -> List[str]:
-        return self.tokenizer(text=text)
+        return self.tokenizer(text)
 
 
 class ScispacyTokenizer(Tokenizer):
