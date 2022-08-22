@@ -3,7 +3,7 @@ from abc import ABC
 from collections import Counter, defaultdict
 from typing import Counter as typeCounter
 from typing import DefaultDict, Dict, List, Set, Union
-
+import numpy as np
 from ner_ehr.data import Constants
 from ner_ehr.data.variables import (
     AnnotationTuple,
@@ -13,6 +13,8 @@ from ner_ehr.data.variables import (
 from ner_ehr.utils import validate_list
 
 TO_LOWER: bool = False
+IGNORE_RANDOM_TOKEN_PROB: float = 0.01
+RANDOM_SEED: int = None
 
 
 class TokenEntityVocab(ABC):
@@ -33,7 +35,8 @@ class TokenEntityVocab(ABC):
     def __init__(
         self,
         to_lower: bool = TO_LOWER,
-        ignore_tokens: List[str] = [],
+        ignore_random_token_prob: float = IGNORE_RANDOM_TOKEN_PROB,
+        random_seed: int = RANDOM_SEED,
     ):
         """
         Args:
@@ -41,13 +44,17 @@ class TokenEntityVocab(ABC):
                 if True, tokens are lowercased before adding into vocab,
                 otherwise not
 
-            ignore_tokens: a list of string tokens used to ignore tokens
-                while saving tokens, by default empty
+            ignore_rand_token_prob: probability to ignore random token
+            while building training vocab, default=None
+
+            random_seed: random number for reproducibility
 
         TODO: add attributes of this class
         """
         self.to_lower = to_lower
-        self.ignore_tokens = ignore_tokens
+        self.ignore_random_token_prob = ignore_random_token_prob
+        self.random_seed = random_seed
+        self.rng: np.random._generator.Generator = None
 
         # stores all unique tokens
         self.uniq_tokens: Set[str] = None
@@ -80,10 +87,8 @@ class TokenEntityVocab(ABC):
         self,
     ) -> None:
         """Initialize class instances/variables."""
-        self.ignore_tokens = set(
-            [self._to_lower(token=token) for token in self.ignore_tokens]
-        )
 
+        self.rng = np.random.default_rng(self.random_seed)
         self.uniq_tokens: Set[str] = set(
             [TokenEntityVocab.PAD_TOKEN, TokenEntityVocab.UNK_TOKEN]
         )
@@ -202,17 +207,12 @@ class TokenEntityVocab(ABC):
 
         # sort entities to assign consecutive indexes to `B-` and `I-` tags
         #   of entities
-        entities = sorted(
+        entities = np.sort(
             [
                 entity
                 for entity in entities
-                if entity
-                not in [
-                    TokenEntityVocab.PAD_TOKEN_ENTITY_LABEL,
-                    TokenEntityVocab.UNTAG_ENTITY_LABEL,
-                ]
-            ],
-            key=lambda x: f"{x.split('-')[1]}-{x.split('-')[0]}",
+                if entity not in self._entity_to_label.keys()
+            ]
         )
         for entity in entities:
             label = self.num_uniq_entities
@@ -255,7 +255,7 @@ class TokenEntityVocab(ABC):
                 token=self._to_lower(token=annotatedtuple.token)
             )
             # checking if current token not in given list of ignore tokens
-            if annotatedtuple.token not in self.ignore_tokens:
+            if self.rng.uniform() >= self.ignore_random_token_prob:
                 self._add_token(token=annotatedtuple.token)
                 self.token_entity_freq[annotatedtuple.token].update(
                     {annotatedtuple.entity: 1}

@@ -21,6 +21,7 @@ from tqdm import tqdm
 logger = logging.getLogger(__name__)
 
 DEFAULT_TO_LOWER: str = "Y"
+DEFAULT_IGNORE_RANDOM_TOKEN_PROB: float = 0.0
 DEFAULT_MAX_SEQ_LENGTH: int = 256
 DEFAULT_EMBED_DIM: int = 50
 DEFAULT_USE_PRE_TRAINED_EMBED: str = "N"
@@ -106,6 +107,17 @@ def parse_arguments():
             f"default: {DEFAULT_TO_LOWER}"
         ),
         default=DEFAULT_TO_LOWER,
+    )
+
+    parser.add_argument(
+        "--ignore_rand_token_prob",
+        type=float,
+        help=(
+            "probability to ignore random training token "
+            "while building vocab, "
+            f"default: {DEFAULT_IGNORE_RANDOM_TOKEN_PROB}"
+        ),
+        default=DEFAULT_IGNORE_RANDOM_TOKEN_PROB,
     )
 
     parser.add_argument(
@@ -366,6 +378,7 @@ def main():
         dir_train=args.tokens_dir_train,
         dir_val=args.tokens_dir_val,
         to_lower=True if args.to_lower == "Y" else False,
+        ignore_random_token_prob=args.ignore_rand_token_prob,
         seq_length=args.seq_len,
         embed_dim=args.embed_dim,
         pre_trained_embed_type=pre_trained_embed_type,
@@ -465,6 +478,7 @@ def run_model(
     dir_train: Union[str, Path],
     dir_val: Union[str, Path],
     to_lower: bool,
+    ignore_random_token_prob: float,
     seq_length: int,
     embed_dim: int,
     pre_trained_embed_type: Optional[str],
@@ -511,9 +525,12 @@ def run_model(
                 [`doc_id`, `token`, `start_idx`, `end_idx`]
             Usually annotated tokens are provided for validation
 
-        to_lower: boolean flag, default=False
+        to_lower: boolean flag
                 if True, tokens are lowercased before adding into vocab,
                 otherwise not
+
+        ignore_random_token_prob: probability to ignore random token
+            while building training vocab
 
         seq_length: maximum number of tokens in a sequence
 
@@ -593,14 +610,16 @@ def run_model(
     Returns:
         None
     """
-    # seeding for reproducibility
-    pl.utilities.seed.seed_everything(random_seed)
 
     logger.info("Loading training annotated tuples ...")
     train_annotatedtuples = read_annotatedtuples(dir=dir_train)
 
     logger.info("Building vocab from training annotated tuples ...")
-    vocab = TokenEntityVocab(to_lower=to_lower)
+    vocab = TokenEntityVocab(
+        to_lower=to_lower,
+        ignore_random_token_prob=ignore_random_token_prob,
+        random_seed=random_seed,
+    )
     vocab.fit(annotatedtuples=train_annotatedtuples)
 
     # loading and saving pre-trained embeddings if required
@@ -615,8 +634,10 @@ def run_model(
         )
 
     logger.info("Initializing PyTorch Lightning data module ...")
+    # seeding for reproducibility
+    pl.utilities.seed.seed_everything(random_seed)
     collate_fn_train = EHRBatchCollator(return_meta=False)
-    collate_fn_val = EHRBatchCollator(return_meta=True)
+    collate_fn_val = EHRBatchCollator(return_meta=False)
     datamodule = EHRDataModule(
         vocab=vocab,
         seq_length=seq_length,
